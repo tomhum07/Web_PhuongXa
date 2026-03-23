@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Web_Phuongxa.API/Web_Phuongxa.API.csproj" />
+  <Project Path="Web_Phuongxa.Application/Web_Phuongxa.Application.csproj" />
+  <Project Path="Web_Phuongxa.Domain/Web_Phuongxa.Domain.csproj" />
+  <Project Path="Web_Phuongxa.Infrastructure/Web_Phuongxa.Infrastructure.csproj" />
+</Solution>

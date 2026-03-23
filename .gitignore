@@ -1,0 +1,19 @@
+# ==============================
+# 1. BỎ QUA RÁC CỦA BACKEND (.NET / Visual Studio)
+# ==============================
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+appsettings.Development.json
+
+# ==============================
+# 2. BỎ QUA RÁC CỦA FRONTEND (Node.js / Next.js)
+# ==============================
+node_modules/
+.next/
+out/
+build/
+.env*.local
+.env
