@@ -23,6 +23,28 @@ namespace Web_Phuongxa.API.Controllers
             _context = context;
         }
 
+        // Hàm mã hóa mật khẩu (dùng khi tạo mới người dùng)
+        [NonAction]
+        public string HashPassword(string password)
+        {
+            // Trả về mật khẩu đã được băm bằng BCrypt
+            return BCrypt.Net.BCrypt.HashPassword(password);
+        }
+
+        // Hàm kiểm tra mật khẩu đã mã hóa
+        [NonAction]
+        public bool VerifyPassword(string password, string storedHash)
+        {
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(password, storedHash);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
@@ -32,9 +54,8 @@ namespace Web_Phuongxa.API.Controllers
                 .FirstOrDefaultAsync(u => u.Username == request.Username && u.IsActive == true);
 
             // 3. Kiểm tra User có tồn tại và mật khẩu có khớp không
-            // ⚠️ LƯU Ý BẢO MẬT: Hiện tại đang so sánh chuỗi thô. 
-            // Trong thực tế doanh nghiệp, bạn PHẢI dùng BCrypt.Verify() để so sánh PasswordHash.
-            if (user == null || user.PasswordHash != request.Password)
+            // Sử dụng hàm VerifyPassword để so sánh mật khẩu người dùng nhập với Hash trong DB
+            if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
             {
                 return Unauthorized(new { Message = "Sai tài khoản, mật khẩu hoặc tài khoản đã bị khóa!" });
             }

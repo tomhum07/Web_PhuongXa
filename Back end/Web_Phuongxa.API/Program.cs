@@ -9,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 // ==========================================
 builder.Services.AddControllers();
 
+// Thêm cấu hình Swagger để sinh tài liệu API
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 // ĐẶT ĐOẠN CODE CORS BỊ LỖI VÀO ĐÂY
 builder.Services.AddCors(options =>
 {
@@ -59,6 +63,13 @@ using (var scope = app.Services.CreateScope())
 // PHẦN 2: CẤU HÌNH PIPELINE (Khu vực của 'app')
 // Mọi lệnh app.Use... hoặc app.Map... PHẢI nằm ở đâ
 // ==========================================
+
+// Bật Swagger và UI trong môi trường phát triển (hoặc luôn bật)
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // Nếu có app.MapOpenApi() thì nó phải nằm ở phần này
 // app.MapOpenApi(); 
