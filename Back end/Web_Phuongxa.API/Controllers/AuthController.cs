@@ -213,21 +213,47 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 4: XÁC NHẬN OTP VÀ ĐẶT LẠI MẬT KHẨU MỚI
+        // API 4: XÁC MINH OTP
         // ==========================================
-        [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequestDto request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || user.ResetOtp != request.Otp)
             {
-                return BadRequest(new { Message = "Mã OTP không hợp lệ hoặc tài khoản không tồn tại." });
+                return BadRequest(new { Message = "Mã xác minh không hợp lệ." });
             }
 
             if (user.ResetOtpExpiry < DateTime.Now)
             {
-                return BadRequest(new { Message = "Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới." });
+                return BadRequest(new { Message = "Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới." });
+            }
+
+            return Ok(new { Message = "Xác minh mã thành công." });
+        }
+
+        // ==========================================
+        // API 5: CẬP NHẬT MẬT KHẨU MỚI
+        // ==========================================
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword != request.ConfirmPassword)
+            {
+                return BadRequest(new { Message = "Mật khẩu và xác nhận mật khẩu không khớp hoặc bị trống." });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            if (user == null || user.ResetOtp != request.Otp)
+            {
+                return BadRequest(new { Message = "Yêu cầu không hợp lệ hoặc phiên đổi mật khẩu đã hết hạn." });
+            }
+
+            if (user.ResetOtpExpiry < DateTime.Now)
+            {
+                return BadRequest(new { Message = "Phiên đổi mật khẩu đã hết hạn. Vui lòng yêu cầu lại mã từ đầu." });
             }
 
             // Cập nhật mật khẩu mới (Đã băm bằng BCrypt)
@@ -239,7 +265,7 @@ namespace Web_Phuongxa.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới." });
+            return Ok(new { Message = "Cập nhật mật khẩu thành công!" });
         }
     }
 }
