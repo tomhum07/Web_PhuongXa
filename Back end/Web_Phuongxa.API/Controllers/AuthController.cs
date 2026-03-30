@@ -48,10 +48,10 @@ namespace Web_Phuongxa.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
-            // 2. Truy vấn User từ Database, kết hợp (Include) bảng Roles để lấy RoleName
+            // 2. Truy vấn User từ Database, cho phép đăng nhập bằng cả Username hoặc Email
             var user = await _context.Users
                 .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Username == request.Username && u.IsActive == true);
+                .FirstOrDefaultAsync(u => (u.Username == request.Username || u.Email == request.Username) && u.IsActive == true);
 
             // 3. Kiểm tra User có tồn tại và mật khẩu có khớp không
             // Sử dụng hàm VerifyPassword để so sánh mật khẩu người dùng nhập với Hash trong DB
@@ -95,6 +95,49 @@ namespace Web_Phuongxa.API.Controllers
                     Role = user.Role.RoleName
                 }
             });
+        }
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.FullName) ||
+                string.IsNullOrWhiteSpace(request.Email) ||
+                string.IsNullOrWhiteSpace(request.Password) ||
+                string.IsNullOrWhiteSpace(request.ConfirmPassword))
+            {
+                return BadRequest(new { Message = "Vui lòng nhập đầy đủ thông tin!" });
+            }
+
+            if (request.Password != request.ConfirmPassword)
+            {
+                return BadRequest(new { Message = "Mật khẩu và xác nhận mật khẩu không khớp. Vui lòng nhập lại!" });
+            }
+
+            var userExists = await _context.Users.AnyAsync(u => u.Email == request.Email || u.Username == request.Email);
+            if (userExists)
+            {
+                return Conflict(new { Message = "Email này đã được sử dụng!" });
+            }
+
+            // Lấy role mặc định cho người dùng mới (ví dụ: RoleId = 5)
+            var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Người dùng" || r.RoleName == "User");
+            int roleId = defaultRole?.RoleId ?? 5;
+
+            var newUser = new User
+            {
+                Username = request.Email, // Dùng Email làm Username luôn vì Username là bắt buộc trong database
+                PasswordHash = HashPassword(request.Password),
+                FullName = request.FullName,
+                Email = request.Email,
+                RoleId = roleId,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Đăng ký thành công!" });
         }
     }
 }

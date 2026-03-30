@@ -21,6 +21,10 @@ public partial class User
 
     public DateTime? CreatedAt { get; set; }
 
+    public string? ResetOtp { get; set; }
+
+    public DateTime? ResetOtpExpiry { get; set; }
+
     public virtual ICollection<Application> ApplicationApplicants { get; set; } = new List<Application>();
 
     public virtual ICollection<Application> ApplicationApprovers { get; set; } = new List<Application>();
