@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Web_Phuongxa.Application.DTOs
 {
-    internal class ResetPasswordRequestDto
+    public class ResetPasswordRequestDto
     {
         public string Email { get; set; } = string.Empty;
         public string Otp { get; set; } = string.Empty;
