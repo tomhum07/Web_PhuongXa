@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Web_Phuongxa.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -75,8 +76,38 @@ if (app.Environment.IsDevelopment())
 // app.MapOpenApi(); 
 
 // Kích hoạt CORS (Phải gọi đúng tên Policy đã tạo ở trên)
-// LƯU Ý: Phải đặt UseCors TRƯỚC UseAuthorization
+// LƯU Ý: Phải đặt UseCors TRƯỚC UseStaticFiles VÀ UseAuthorization để áp dụng CORS cho cả hình ảnh
 app.UseCors("AllowNextJS");
+
+// Phục vụ các file trong thư mục mặc định wwwroot (bao gồm wwwroot/uploads)
+// Thêm tuỳ chọn OnPrepareResponse để đảm bảo CORS luôn được áp dụng đính kèm vào Header cho Tệp Tĩnh (Hình ảnh)
+//app.UseStaticFiles(new StaticFileOptions
+//{
+//    OnPrepareResponse = ctx =>
+//    {
+//        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+//    }
+//});
+
+
+var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    // 1. Chỉ cho Backend biết thư mục vật lý thực tế chứa ảnh nằm ở đâu
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+
+    // 2. Định nghĩa URL bắt đầu bằng gì thì sẽ chui vào thư mục trên
+    RequestPath = "/uploads"
+});
+
+
+// Bạn không cần phải khai báo FileProvider trỏ vào "wwwroot/uploads" và RequestPath = "/uploads" nữa, 
+// vì app.UseStaticFiles() mặc định đã làm điều này cho thư mục wwwroot.
 
 app.UseAuthorization();
 app.MapControllers();
