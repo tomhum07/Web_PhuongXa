@@ -192,7 +192,7 @@ namespace Web_Phuongxa.API.Controllers
         [HttpPost("upload")]
         public async Task<IActionResult> UploadImage([FromForm] UploadImageDto request)
         {
-            if (request.File == null || request.File.Length == 0)
+            if (request.File == null || request.File.Length == 0) 
             {
                 return BadRequest(new { Message = "Vui lòng chọn một tệp ảnh." });
             }

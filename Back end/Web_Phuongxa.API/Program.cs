@@ -1,5 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Web_Phuongxa.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +16,26 @@ builder.Services.AddControllers();
 // Thêm cấu hình Swagger để sinh tài liệu API
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = "PhuongxaAPI",
+            ValidAudience = "PhuongxaClient",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SuperSecretKeyThatIsAtLeast32BytesLong123!"))
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole("Admin", "Quản trị viên", "Quan tri vien"));
+});
 
 // ĐẶT ĐOẠN CODE CORS BỊ LỖI VÀO ĐÂY
 builder.Services.AddCors(options =>
@@ -30,7 +53,6 @@ builder.Services.AddDbContext<PhuongXaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 // CHỐT SỔ: Khởi tạo ứng dụng
 var app = builder.Build();
-
 
 // =====================================================================
 // BẮT ĐẦU ĐOẠN CODE "LÀM NÓNG" (WARM-UP) ENTITY FRAMEWORK
@@ -105,10 +127,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/uploads"
 });
 
-
-// Bạn không cần phải khai báo FileProvider trỏ vào "wwwroot/uploads" và RequestPath = "/uploads" nữa, 
-// vì app.UseStaticFiles() mặc định đã làm điều này cho thư mục wwwroot.
-
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
