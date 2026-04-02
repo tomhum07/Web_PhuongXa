@@ -13,6 +13,8 @@ public partial class Category
 
     public string Slug { get; set; } = null!;
 
+    public bool? IsActive { get; set; }
+
     public virtual ICollection<Article> Articles { get; set; } = new List<Article>();
 
     public virtual ICollection<Category> InverseParent { get; set; } = new List<Category>();

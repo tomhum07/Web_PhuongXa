@@ -169,6 +169,7 @@ public partial class PhuongXaDbContext : DbContext
 
             entity.HasIndex(e => e.Slug, "UQ__Categori__BC7B5FB6C1023140").IsUnique();
 
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Name).HasMaxLength(100);
             entity.Property(e => e.Slug)
                 .HasMaxLength(150)
