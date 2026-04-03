@@ -13,7 +13,7 @@ public partial class Comment
 
     public string Content { get; set; } = null!;
 
-    public string? Status { get; set; }
+    public bool? IsActive { get; set; }
 
     public int? HiddenById { get; set; }
 

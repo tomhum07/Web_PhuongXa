@@ -8,7 +8,7 @@ namespace Web_Phuongxa.API.Controllers
 {
     [Route("api/admin/users")]
     [ApiController]
-    [Authorize(Policy = "AdminOnly")]
+    //[Authorize(Policy = "AdminOnly")]
     public class AdminUsersController : ControllerBase
     {
         private readonly PhuongXaDbContext _context;

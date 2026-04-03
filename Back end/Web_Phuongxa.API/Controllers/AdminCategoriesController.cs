@@ -188,6 +188,29 @@ namespace Web_Phuongxa.API.Controllers
                 return NotFound(new { Message = "Không tìm thấy danh mục!" });
             }
 
+            // Không cho mở danh mục con nếu danh mục cha/tổ tiên đang ẩn
+            var parentId = category.ParentId;
+            while (parentId.HasValue)
+            {
+                var parent = allCategories.FirstOrDefault(c => c.CategoryId == parentId.Value);
+                if (parent == null)
+                {
+                    break;
+                }
+
+                if (parent.IsActive != true)
+                {
+                    return BadRequest(new
+                    {
+                        Message = "Không thể mở danh mục con khi danh mục cha đang bị ẩn. Vui lòng mở danh mục cha trước!",
+                        ParentCategoryId = parent.CategoryId,
+                        ParentCategoryName = parent.Name
+                    });
+                }
+
+                parentId = parent.ParentId;
+            }
+
             var idsToShow = GetCategoryTreeIds(id, allCategories);
             var categoriesToShow = allCategories.Where(c => idsToShow.Contains(c.CategoryId)).ToList();
 
