@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.StaticFiles;
 using Web_Phuongxa.Application.DTOs;
+using Web_Phuongxa.Application.Interfaces;
 using Web_Phuongxa.Infrastructure;
 
 namespace Web_Phuongxa.API.Controllers
@@ -18,16 +19,15 @@ namespace Web_Phuongxa.API.Controllers
     public class GalleryController : ControllerBase
     {
         private readonly PhuongXaDbContext _context;
+        private readonly IFileStorageService _fileStorageService;
 
-        public GalleryController(PhuongXaDbContext context)
+        public GalleryController(PhuongXaDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
+            _fileStorageService = fileStorageService;
         }
 
         private string BuildImageApiUrl(int imageId) => $"{Request.Scheme}://{Request.Host}/api/Gallery/{imageId}/image";
-
-        private string BuildStaticUrl(string imageUrl)
-            => $"{Request.Scheme}://{Request.Host}" + (imageUrl.StartsWith('/') ? imageUrl : $"/{imageUrl}");
 
         private static string NormalizeSectionFolder(string section)
         {
@@ -47,10 +47,39 @@ namespace Web_Phuongxa.API.Controllers
             return Regex.Replace(noAccent, @"\s+", "-").Trim('-');
         }
 
-        private static string GetPhysicalPath(string imageUrl)
+        private static string GetLegacyPhysicalPath(string imageUrl)
         {
             var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
             return Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relativePath);
+        }
+
+        private static string GetContentType(string reference)
+        {
+            var provider = new FileExtensionContentTypeProvider();
+            var path = reference;
+
+            if (Uri.TryCreate(reference, UriKind.Absolute, out var uri))
+            {
+                path = uri.AbsolutePath;
+            }
+
+            if (!provider.TryGetContentType(path, out var contentType))
+            {
+                contentType = "application/octet-stream";
+            }
+
+            return contentType;
+        }
+
+        private async Task<bool> ImageExistsAsync(string imageReference)
+        {
+            if (await _fileStorageService.ExistsAsync(imageReference))
+            {
+                return true;
+            }
+
+            var legacyPath = GetLegacyPhysicalPath(imageReference);
+            return System.IO.File.Exists(legacyPath);
         }
 
         [HttpGet]
@@ -67,32 +96,26 @@ namespace Web_Phuongxa.API.Controllers
             var images = await query
                 .Where(img => img.IsVisible)
                 .OrderByDescending(img => img.CreatedAt)
-                .Select(img => new
+                .Include(img => img.Uploader)
+                .ToListAsync();
+
+            var result = new List<object>();
+            foreach (var img in images)
+            {
+                result.Add(new
                 {
                     img.ImageId,
                     img.Section,
                     img.Title,
-                    img.ImageUrl,
+                    ImageUrl = BuildImageApiUrl(img.ImageId),
+                    BlobUrl = img.ImageUrl,
+                    HasFile = await ImageExistsAsync(img.ImageUrl),
                     img.UploaderId,
                     UploaderName = img.Uploader != null ? img.Uploader.FullName : null,
                     img.IsVisible,
                     img.CreatedAt
-                })
-                .ToListAsync();
-
-            var result = images.Select(img => new
-            {
-                img.ImageId,
-                img.Section,
-                img.Title,
-                ImageUrl = BuildImageApiUrl(img.ImageId),
-                StaticUrl = BuildStaticUrl(img.ImageUrl),
-                HasFile = System.IO.File.Exists(GetPhysicalPath(img.ImageUrl)),
-                img.UploaderId,
-                img.UploaderName,
-                img.IsVisible,
-                img.CreatedAt
-            });
+                });
+            }
 
             return Ok(result);
         }
@@ -105,17 +128,22 @@ namespace Web_Phuongxa.API.Controllers
                 .Select(x => new { x.ImageId, x.Section, x.Title, x.ImageUrl, x.IsVisible })
                 .ToListAsync();
 
-            var missing = images
-                .Where(x => !string.IsNullOrWhiteSpace(x.ImageUrl) && !System.IO.File.Exists(GetPhysicalPath(x.ImageUrl)))
-                .Select(x => new
+            var missing = new List<object>();
+            foreach (var x in images)
+            {
+                if (!await ImageExistsAsync(x.ImageUrl))
                 {
-                    x.ImageId,
-                    x.Section,
-                    x.Title,
-                    x.ImageUrl,
-                    StaticUrl = BuildStaticUrl(x.ImageUrl),
-                    x.IsVisible
-                });
+                    missing.Add(new
+                    {
+                        x.ImageId,
+                        x.Section,
+                        x.Title,
+                        BlobUrl = x.ImageUrl,
+                        ImageUrl = BuildImageApiUrl(x.ImageId),
+                        x.IsVisible
+                    });
+                }
+            }
 
             return Ok(missing);
         }
@@ -124,11 +152,15 @@ namespace Web_Phuongxa.API.Controllers
         public async Task<IActionResult> HideMissingFiles()
         {
             var images = await _context.GalleryImages.Where(x => x.IsVisible).ToListAsync();
-            var toHide = images.Where(x => !string.IsNullOrWhiteSpace(x.ImageUrl) && !System.IO.File.Exists(GetPhysicalPath(x.ImageUrl))).ToList();
+            var toHide = new List<Web_Phuongxa.Domain.Entities.GalleryImage>();
 
-            foreach (var image in toHide)
+            foreach (var image in images)
             {
-                image.IsVisible = false;
+                if (!await ImageExistsAsync(image.ImageUrl))
+                {
+                    image.IsVisible = false;
+                    toHide.Add(image);
+                }
             }
 
             await _context.SaveChangesAsync();
@@ -147,7 +179,7 @@ namespace Web_Phuongxa.API.Controllers
                 return NotFound(new { Message = "Không tìm thấy hình ảnh!" });
             }
 
-            var hasFile = !string.IsNullOrWhiteSpace(image.ImageUrl) && System.IO.File.Exists(GetPhysicalPath(image.ImageUrl));
+            var hasFile = await ImageExistsAsync(image.ImageUrl);
 
             return Ok(new
             {
@@ -155,7 +187,7 @@ namespace Web_Phuongxa.API.Controllers
                 image.Section,
                 image.Title,
                 ImageUrl = BuildImageApiUrl(image.ImageId),
-                StaticUrl = BuildStaticUrl(image.ImageUrl),
+                BlobUrl = image.ImageUrl,
                 HasFile = hasFile,
                 image.UploaderId,
                 UploaderName = image.Uploader?.FullName,
@@ -173,26 +205,25 @@ namespace Web_Phuongxa.API.Controllers
                 return NotFound(new { Message = "Không tìm thấy hình ảnh!" });
             }
 
-            var fullPath = GetPhysicalPath(image.ImageUrl);
-
-            if (!System.IO.File.Exists(fullPath))
+            var blobStream = await _fileStorageService.DownloadImageAsync(image.ImageUrl);
+            if (blobStream != null)
             {
-                return NotFound(new { Message = "File ảnh không tồn tại trên server!", ImageId = id, ImageUrl = image.ImageUrl });
+                return File(blobStream, GetContentType(image.ImageUrl), enableRangeProcessing: true);
             }
 
-            var provider = new FileExtensionContentTypeProvider();
-            if (!provider.TryGetContentType(fullPath, out var contentType))
+            var legacyPath = GetLegacyPhysicalPath(image.ImageUrl);
+            if (System.IO.File.Exists(legacyPath))
             {
-                contentType = "application/octet-stream";
+                return PhysicalFile(legacyPath, GetContentType(legacyPath));
             }
 
-            return PhysicalFile(fullPath, contentType);
+            return NotFound(new { Message = "File ảnh không tồn tại trên server!", ImageId = id, BlobUrl = image.ImageUrl });
         }
 
         [HttpPost("upload")]
         public async Task<IActionResult> UploadImage([FromForm] UploadImageDto request)
         {
-            if (request.File == null || request.File.Length == 0) 
+            if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(new { Message = "Vui lòng chọn một tệp ảnh." });
             }
@@ -203,29 +234,18 @@ namespace Web_Phuongxa.API.Controllers
             }
 
             var sectionFolder = NormalizeSectionFolder(request.Section);
+            var blobUrl = await _fileStorageService.UploadImageAsync(request.File, sectionFolder);
 
-            var uploadFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "gallery", sectionFolder);
-            if (!Directory.Exists(uploadFolderPath))
+            if (string.IsNullOrWhiteSpace(blobUrl))
             {
-                Directory.CreateDirectory(uploadFolderPath);
+                return StatusCode(500, new { Message = "Không thể tải ảnh lên Azure Blob Storage." });
             }
-
-            var fileExtension = Path.GetExtension(request.File.FileName);
-            var uniqueFileName = $"{Guid.NewGuid()}{fileExtension}";
-            var filePath = Path.Combine(uploadFolderPath, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await request.File.CopyToAsync(stream);
-            }
-
-            var imageUrl = $"/uploads/gallery/{sectionFolder}/{uniqueFileName}";
 
             var galleryImage = new Web_Phuongxa.Domain.Entities.GalleryImage
             {
-                Section = request.Section,
+                Section = request.Section.Trim(),
                 Title = request.Title ?? string.Empty,
-                ImageUrl = imageUrl,
+                ImageUrl = blobUrl,
                 UploaderId = request.UploaderId,
                 IsVisible = true,
                 CreatedAt = DateTime.UtcNow
@@ -234,14 +254,18 @@ namespace Web_Phuongxa.API.Controllers
             _context.GalleryImages.Add(galleryImage);
             await _context.SaveChangesAsync();
 
-            return Ok(new {
+            return Ok(new
+            {
                 Message = "Tải ảnh lên thành công!",
-                Image = new {
+                imageUrl = BuildImageApiUrl(galleryImage.ImageId),
+                blobUrl = galleryImage.ImageUrl,
+                Image = new
+                {
                     galleryImage.ImageId,
                     galleryImage.Section,
                     galleryImage.Title,
                     ImageUrl = BuildImageApiUrl(galleryImage.ImageId),
-                    StaticUrl = BuildStaticUrl(galleryImage.ImageUrl),
+                    BlobUrl = galleryImage.ImageUrl,
                     HasFile = true,
                     galleryImage.UploaderId,
                     galleryImage.IsVisible,
