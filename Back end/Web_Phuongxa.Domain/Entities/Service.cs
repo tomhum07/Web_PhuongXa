@@ -11,9 +11,19 @@ public partial class Service
 
     public string? Description { get; set; }
 
-    public string? ProcedureDetails { get; set; }
-
     public bool? IsActive { get; set; }
 
+    public int? ServiceCategoryId { get; set; }
+
+    public string? ServiceCode { get; set; }
+
+    public string? ProcedureFileUrl { get; set; }
+
+    public string? TemplateFileUrl { get; set; }
+
+    public DateTime? CreatedAt { get; set; }
+
     public virtual ICollection<Application> Applications { get; set; } = new List<Application>();
+
+    public virtual ServiceCategory? ServiceCategory { get; set; }
 }

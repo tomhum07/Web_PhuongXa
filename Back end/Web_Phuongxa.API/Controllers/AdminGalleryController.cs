@@ -16,7 +16,7 @@ namespace Web_Phuongxa.API.Controllers
 {
     [Route("api/admin/gallery")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    //[Authorize(Roles = "Admin")]
     public class AdminGalleryController : ControllerBase
     {
         private readonly PhuongXaDbContext _context;

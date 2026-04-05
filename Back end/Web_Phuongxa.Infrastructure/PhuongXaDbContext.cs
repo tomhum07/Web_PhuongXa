@@ -26,6 +26,8 @@ public partial class PhuongXaDbContext : DbContext
 
     public virtual DbSet<Category> Categories { get; set; }
 
+    public virtual DbSet<ServiceCategory> ServiceCategories { get; set; }
+
     public virtual DbSet<Comment> Comments { get; set; }
 
     public virtual DbSet<Feedback> Feedbacks { get; set; }
@@ -41,7 +43,6 @@ public partial class PhuongXaDbContext : DbContext
     public virtual DbSet<GalleryImage> GalleryImages { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
         => optionsBuilder.UseSqlServer("Server=LAPTOP-T4M99QFV;Database=Web_PhuongXa;Trusted_Connection=True;TrustServerCertificate=True;");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -180,6 +181,26 @@ public partial class PhuongXaDbContext : DbContext
                 .HasConstraintName("FK__Categorie__Paren__48CFD27E");
         });
 
+        modelBuilder.Entity<ServiceCategory>(entity =>
+        {
+            entity.HasKey(e => e.ServiceCategoryId).HasName("PK__ServiceC__9AFB3F6A6F0C3E0A");
+
+            entity.ToTable("ServiceCategories");
+
+            entity.HasIndex(e => e.CategoryCode, "UQ__ServiceCa__23B97B32B0C6D4A8").IsUnique();
+
+            entity.Property(e => e.ServiceCategoryId).HasColumnName("ServiceCategoryId");
+            entity.Property(e => e.CategoryCode)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Name).HasMaxLength(100);
+        });
+
         modelBuilder.Entity<Comment>(entity =>
         {
             entity.HasKey(e => e.CommentId).HasName("PK__Comments__C3B4DFCA12C20AB2");
@@ -267,11 +288,31 @@ public partial class PhuongXaDbContext : DbContext
 
         modelBuilder.Entity<Service>(entity =>
         {
+            entity.ToTable("Services", tb => tb.UseSqlOutputClause(false));
+
             entity.HasKey(e => e.ServiceId).HasName("PK__Services__C51BB00AF62EBE92");
 
+            entity.HasIndex(e => e.ServiceCode, "UQ__Services__A64C6B603DAA0A22").IsUnique();
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.Name).HasMaxLength(255);
+            entity.Property(e => e.ProcedureFileUrl)
+                .HasMaxLength(500)
+                .IsUnicode(false);
+            entity.Property(e => e.ServiceCode)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.TemplateFileUrl)
+                .HasMaxLength(500)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.ServiceCategory).WithMany(p => p.Services)
+                .HasForeignKey(d => d.ServiceCategoryId)
+                .HasConstraintName("FK__Services__Servic__5AEE82B9");
         });
 
         modelBuilder.Entity<User>(entity =>

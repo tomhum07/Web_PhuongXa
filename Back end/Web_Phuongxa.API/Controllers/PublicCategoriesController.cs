@@ -25,7 +25,7 @@ namespace Web_Phuongxa.API.Controllers
             var categories = await _context.Categories
                 .AsNoTracking()
                 .Include(c => c.Parent)
-                .Where(c => c.IsActive == true && (!c.ParentId.HasValue || c.Parent.IsActive == true))
+                .Where(c => c.IsActive == true && (!c.ParentId.HasValue || (c.Parent != null && c.Parent.IsActive == true)))
                 .OrderBy(c => c.CategoryId)
                 .Select(c => new
                 {
