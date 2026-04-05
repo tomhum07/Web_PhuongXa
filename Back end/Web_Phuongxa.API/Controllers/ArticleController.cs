@@ -74,6 +74,33 @@ namespace Web_Phuongxa.API.Controllers
             return Ok(articles);
         }
 
+        // 1.1. Lấy 5 bài viết mới nhất
+        [HttpGet("latest")]
+        public async Task<IActionResult> GetLatestArticles()
+        {
+            var articles = await _context.Articles
+                .Include(a => a.Category)
+                .Include(a => a.Author)
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(5)
+                .Select(a => new
+                {
+                    a.ArticleId,
+                    a.Title,
+                    a.Slug,
+                    a.Summary,
+                    a.ThumbnailUrl,
+                    a.ViewCount,
+                    a.Status,
+                    a.CreatedAt,
+                    CategoryName = a.Category != null ? a.Category.Name : null,
+                    AuthorName = a.Author != null ? a.Author.FullName : null
+                })
+                .ToListAsync();
+
+            return Ok(articles);
+        }
+
         // 2. Lấy chi tiết 1 bài viết theo ID
         [HttpGet("{id}")]
         public async Task<IActionResult> GetArticleById(int id)

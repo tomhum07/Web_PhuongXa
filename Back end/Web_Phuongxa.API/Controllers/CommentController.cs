@@ -197,16 +197,26 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         [HttpGet("search")]
-        public async Task<IActionResult> SearchComments([FromQuery] int articleId, [FromQuery] string? commenterName, [FromQuery] string? content)
+        public async Task<IActionResult> SearchComments([FromQuery] int? articleId, [FromQuery] string? fullName, [FromQuery] string? content)
         {
+            if (articleId is null && string.IsNullOrWhiteSpace(fullName) && string.IsNullOrWhiteSpace(content))
+            {
+                return BadRequest(new { Message = "Vui lòng nhập ít nhất một điều kiện tìm kiếm: articleId, fullName hoặc content." });
+            }
+
             var query = _context.Comments
                 .Include(c => c.User)
-                .Where(c => c.ArticleId == articleId)
+                .Include(c => c.Article)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(commenterName))
+            if (articleId.HasValue)
             {
-                var keywordName = commenterName.Trim().ToLower();
+                query = query.Where(c => c.ArticleId == articleId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(fullName))
+            {
+                var keywordName = fullName.Trim().ToLower();
                 query = query.Where(c => c.User.FullName.ToLower().Contains(keywordName));
             }
 
@@ -222,6 +232,7 @@ namespace Web_Phuongxa.API.Controllers
                 {
                     c.CommentId,
                     c.ArticleId,
+                    ArticleTitle = c.Article.Title,
                     c.UserId,
                     UserName = c.User.FullName,
                     c.Content,
