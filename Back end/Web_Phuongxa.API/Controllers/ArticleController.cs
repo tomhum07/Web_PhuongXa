@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
 using Web_Phuongxa.Application.DTOs;
+using Web_Phuongxa.Application.Interfaces;
 using Web_Phuongxa.Domain.Entities;
 using Web_Phuongxa.Infrastructure;
 
@@ -16,10 +17,12 @@ namespace Web_Phuongxa.API.Controllers
     public class ArticleController : ControllerBase
     {
         private readonly PhuongXaDbContext _context;
+        private readonly IFileStorageService _fileStorageService;
 
-        public ArticleController(PhuongXaDbContext context)
+        public ArticleController(PhuongXaDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
+            _fileStorageService = fileStorageService;
         }
 
         // Tạo Slug từ Title
@@ -168,6 +171,29 @@ namespace Web_Phuongxa.API.Controllers
                 article.PublishedAt,
                 article.CreatedAt,
                 article.UpdatedAt
+            });
+        }
+
+        // 2.1 Upload ảnh thumbnail
+        [HttpPost("upload-thumbnail")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadThumbnail([FromForm] UploadThumbnailDto request)
+        {
+            if (request.File == null || request.File.Length == 0)
+            {
+                return BadRequest(new { Message = "Vui lòng chọn ảnh thumbnail để upload!" });
+            }
+
+            var thumbnailUrl = await _fileStorageService.UploadImageAsync(request.File, "article-thumbnail");
+            if (string.IsNullOrWhiteSpace(thumbnailUrl))
+            {
+                return StatusCode(500, new { Message = "Không thể upload ảnh thumbnail lên hệ thống lưu trữ." });
+            }
+
+            return Ok(new
+            {
+                Message = "Upload ảnh thumbnail thành công!",
+                ThumbnailUrl = thumbnailUrl
             });
         }
 

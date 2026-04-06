@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using System;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Web_Phuongxa.Application.Interfaces;
@@ -27,12 +26,6 @@ namespace Web_Phuongxa.API.Controllers
 
         private string BuildImageApiUrl(int imageId) => $"{Request.Scheme}://{Request.Host}/api/Gallery/{imageId}/image";
 
-        private static string GetLegacyPhysicalPath(string imageUrl)
-        {
-            var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-            return Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relativePath);
-        }
-
         private static string GetContentType(string reference)
         {
             var provider = new FileExtensionContentTypeProvider();
@@ -53,13 +46,7 @@ namespace Web_Phuongxa.API.Controllers
 
         private async Task<bool> ImageExistsAsync(string imageReference)
         {
-            if (await _fileStorageService.ExistsAsync(imageReference))
-            {
-                return true;
-            }
-
-            var legacyPath = GetLegacyPhysicalPath(imageReference);
-            return System.IO.File.Exists(legacyPath);
+            return await _fileStorageService.ExistsAsync(imageReference);
         }
 
         [HttpGet]
@@ -144,13 +131,7 @@ namespace Web_Phuongxa.API.Controllers
                 return File(blobStream, GetContentType(image.ImageUrl), enableRangeProcessing: true);
             }
 
-            var legacyPath = GetLegacyPhysicalPath(image.ImageUrl);
-            if (System.IO.File.Exists(legacyPath))
-            {
-                return PhysicalFile(legacyPath, GetContentType(legacyPath));
-            }
-
-            return NotFound(new { Message = "File ảnh không tồn tại trên server!", ImageId = id, BlobUrl = image.ImageUrl });
+            return NotFound(new { Message = "File ảnh không tồn tại trên hệ thống lưu trữ!", ImageId = id, BlobUrl = image.ImageUrl });
         }
     }
 }

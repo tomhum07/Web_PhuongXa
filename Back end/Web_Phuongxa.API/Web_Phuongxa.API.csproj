@@ -24,4 +24,8 @@
     <ProjectReference Include="..\Web_Phuongxa.Infrastructure\Web_Phuongxa.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\uploads\applications\2026\" />
+  </ItemGroup>
+
 </Project>

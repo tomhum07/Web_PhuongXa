@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -48,21 +47,9 @@ namespace Web_Phuongxa.API.Controllers
             return Regex.Replace(noAccent, @"\s+", "-").Trim('-');
         }
 
-        private static string GetLegacyPhysicalPath(string imageUrl)
-        {
-            var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-            return Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relativePath);
-        }
-
         private async Task<bool> ImageExistsAsync(string imageReference)
         {
-            if (await _fileStorageService.ExistsAsync(imageReference))
-            {
-                return true;
-            }
-
-            var legacyPath = GetLegacyPhysicalPath(imageReference);
-            return System.IO.File.Exists(legacyPath);
+            return await _fileStorageService.ExistsAsync(imageReference);
         }
 
         [HttpGet]

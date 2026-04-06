@@ -6,7 +6,11 @@ using Web_Phuongxa.Application.Interfaces;
 using Web_Phuongxa.Infrastructure;
 using Web_Phuongxa.Infrastructure.Storage;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    WebRootPath = "."
+});
 
 // ==========================================
 // PHẦN 1: THÊM DỊCH VỤ (Khu vực của 'builder')
@@ -101,7 +105,6 @@ if (app.Environment.IsDevelopment())
 // Kích hoạt CORS (Phải gọi đúng tên Policy đã tạo ở trên)
 // LƯU Ý: Phải đặt UseCors TRƯỚC UseStaticFiles VÀ UseAuthorization để áp dụng CORS cho cả hình ảnh
 app.UseCors("AllowNextJS");
-app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
