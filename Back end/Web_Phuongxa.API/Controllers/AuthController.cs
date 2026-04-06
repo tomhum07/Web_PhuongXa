@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -25,6 +26,28 @@ namespace Web_Phuongxa.API.Controllers
         {
             _context = context;
             _configuration = configuration;
+        }
+
+        private string GetRequiredJwtSetting(string key)
+        {
+            var value = _configuration[key];
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            {
+                return key switch
+                {
+                    "Authentication:Jwt:Issuer" => "PhuongxaAPI",
+                    "Authentication:Jwt:Audience" => "PhuongxaClient",
+                    "Authentication:Jwt:Key" => "SuperSecretKeyThatIsAtLeast32BytesLong123!",
+                    _ => string.Empty
+                };
+            }
+
+            throw new InvalidOperationException($"Missing {key} configuration.");
         }
 
         // ==========================================
@@ -72,12 +95,16 @@ namespace Web_Phuongxa.API.Controllers
                 new Claim("FullName", user.FullName)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SuperSecretKeyThatIsAtLeast32BytesLong123!"));
+            var issuer = GetRequiredJwtSetting("Authentication:Jwt:Issuer");
+            var audience = GetRequiredJwtSetting("Authentication:Jwt:Audience");
+            var keyValue = GetRequiredJwtSetting("Authentication:Jwt:Key");
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyValue));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var tokenDescriptor = new JwtSecurityToken(
-                issuer: "PhuongxaAPI",
-                audience: "PhuongxaClient",
+                issuer: issuer,
+                audience: audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddDays(1),
                 signingCredentials: creds
@@ -258,14 +285,11 @@ namespace Web_Phuongxa.API.Controllers
 
             // Cập nhật mật khẩu mới (Đã băm bằng BCrypt)
             user.PasswordHash = HashPassword(request.NewPassword);
-
-            // Xóa mã OTP để không bị dùng lại (Bảo mật 1 lần)
             user.ResetOtp = null;
             user.ResetOtpExpiry = null;
-
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Cập nhật mật khẩu thành công!" });
+            return Ok(new { Message = "Đặt lại mật khẩu thành công!" });
         }
     }
 }

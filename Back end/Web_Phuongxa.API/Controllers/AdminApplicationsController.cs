@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -52,22 +55,276 @@ namespace Web_Phuongxa.API.Controllers
             return $"{prefix}_{codePart}";
         }
 
+        private static string? GetString(DbDataReader reader, string columnName)
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+        }
+
+        private static int? GetInt32(DbDataReader reader, string columnName)
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+        }
+
+        private static DateTime? GetDateTime(DbDataReader reader, string columnName)
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+        }
+
+        private static string GetStatusText(string? status)
+        {
+            return status?.Trim().ToLowerInvariant() switch
+            {
+                "submitted" => "Đã nộp",
+                "processing" => "Đang xử lý",
+                "approved" => "Đã duyệt",
+                "rejected" => "Từ chối",
+                _ => string.IsNullOrWhiteSpace(status) ? string.Empty : status
+            };
+        }
+
+        private static bool IsValidApplicationStatus(string? status)
+        {
+            return status != null && (
+                status.Equals("Submitted", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Processing", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Approved", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Rejected", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private async Task<List<AdminApplicationDto>> ReadApplicationsAsync(string sql, Action<DbCommand>? configureCommand = null)
+        {
+            var results = new List<AdminApplicationDto>();
+            var connection = _context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+
+            try
+            {
+                if (shouldClose)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                configureCommand?.Invoke(command);
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var status = GetString(reader, "Status");
+                    results.Add(new AdminApplicationDto
+                    {
+                        ApplicationId = reader.GetInt32(reader.GetOrdinal("ApplicationId")),
+                        ServiceId = reader.GetInt32(reader.GetOrdinal("ServiceId")),
+                        ServiceCode = GetString(reader, "ServiceCode"),
+                        ServiceName = GetString(reader, "ServiceName"),
+                        CategoryName = GetString(reader, "CategoryName"),
+                        ApplicationCode = GetString(reader, "ApplicationCode") ?? string.Empty,
+                        ApplicantName = GetString(reader, "ApplicantName") ?? string.Empty,
+                        IdentityNumber = GetString(reader, "IdentityNumber") ?? string.Empty,
+                        DateOfBirth = GetDateTime(reader, "DateOfBirth"),
+                        Address = GetString(reader, "Address") ?? string.Empty,
+                        AttachedFileUrl = GetString(reader, "AttachedFileUrl"),
+                        Status = status,
+                        StatusText = GetStatusText(status),
+                        HandlerId = GetInt32(reader, "HandlerId"),
+                        CreatedAt = GetDateTime(reader, "CreatedAt")
+                    });
+                }
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+
+            return results;
+        }
+
+        private async Task<AdminApplicationDto?> ReadSingleApplicationAsync(string sql, Action<DbCommand>? configureCommand = null)
+        {
+            var applications = await ReadApplicationsAsync(sql, configureCommand);
+            return applications.FirstOrDefault();
+        }
+
+        [HttpGet("applications")]
+        [HttpGet]
+        public async Task<IActionResult> GetApplications([FromQuery] string? status = null)
+        {
+            var sql = @"
+SELECT
+    a.[ApplicationId],
+    a.[ServiceId],
+    s.[ServiceCode],
+    s.[Name] AS [ServiceName],
+    sc.[Name] AS [CategoryName],
+    a.[ApplicationCode],
+    a.[ApplicantName],
+    a.[IdentityNumber],
+    a.[DateOfBirth],
+    a.[Address],
+    a.[AttachedFileUrl],
+    a.[Status],
+    a.[HandlerId],
+    a.[CreatedAt]
+FROM [Applications] a
+LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
+LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
+WHERE 1 = 1";
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                sql += " AND a.[Status] = @Status";
+            }
+
+            sql += " ORDER BY a.[CreatedAt] DESC, a.[ApplicationId] DESC";
+
+            var applications = await ReadApplicationsAsync(sql, command =>
+            {
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    var parameter = command.CreateParameter();
+                    parameter.ParameterName = "@Status";
+                    parameter.Value = status.Trim();
+                    command.Parameters.Add(parameter);
+                }
+            });
+
+            return Ok(applications);
+        }
+
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetApplicationById(int id)
+        {
+            var sql = @"
+SELECT
+    a.[ApplicationId],
+    a.[ServiceId],
+    s.[ServiceCode],
+    s.[Name] AS [ServiceName],
+    sc.[Name] AS [CategoryName],
+    a.[ApplicationCode],
+    a.[ApplicantName],
+    a.[IdentityNumber],
+    a.[DateOfBirth],
+    a.[Address],
+    a.[AttachedFileUrl],
+    a.[Status],
+    a.[HandlerId],
+    a.[CreatedAt]
+FROM [Applications] a
+LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
+LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
+WHERE a.[ApplicationId] = @Id";
+
+            var application = await ReadSingleApplicationAsync(sql, command =>
+            {
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "@Id";
+                parameter.Value = id;
+                command.Parameters.Add(parameter);
+            });
+
+            if (application == null)
+            {
+                return NotFound(new { Message = "Không tìm thấy hồ sơ!" });
+            }
+
+            return Ok(application);
+        }
+
+        [HttpPut("{id:int}/status")]
+        public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] AdminApplicationStatusUpdateDto request)
+        {
+            if (!IsValidApplicationStatus(request.Status))
+            {
+                return BadRequest(new { Message = "Trạng thái không hợp lệ. Chỉ chấp nhận Submitted, Processing, Approved, Rejected." });
+            }
+
+            if (request.HandlerId.HasValue)
+            {
+                var handlerExists = await _context.Users.AnyAsync(u => u.UserId == request.HandlerId.Value);
+                if (!handlerExists)
+                {
+                    return BadRequest(new { Message = "HandlerId không tồn tại." });
+                }
+            }
+
+            var connection = _context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+
+            try
+            {
+                if (shouldClose)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"
+UPDATE [Applications]
+SET [Status] = @Status,
+    [HandlerId] = COALESCE(@HandlerId, [HandlerId])
+WHERE [ApplicationId] = @Id;
+SELECT @@ROWCOUNT;";
+
+                void AddParameter(string name, object? value)
+                {
+                    var parameter = command.CreateParameter();
+                    parameter.ParameterName = name;
+                    parameter.Value = value ?? DBNull.Value;
+                    command.Parameters.Add(parameter);
+                }
+
+                AddParameter("@Id", id);
+                AddParameter("@Status", request.Status.Trim());
+                AddParameter("@HandlerId", request.HandlerId);
+
+                var affected = Convert.ToInt32(await command.ExecuteScalarAsync());
+                if (affected == 0)
+                {
+                    return NotFound(new { Message = "Không tìm thấy hồ sơ!" });
+                }
+
+                return Ok(new
+                {
+                    Message = "Cập nhật trạng thái hồ sơ thành công!",
+                    ApplicationId = id,
+                    Status = request.Status.Trim(),
+                    StatusText = GetStatusText(request.Status)
+                });
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }
+
         [HttpGet("fields")]
         public async Task<IActionResult> GetFields()
         {
             var fields = await _context.ServiceCategories
                 .AsNoTracking()
-                .OrderBy(x => x.ServiceCategoryId)
-                .Select(x => new
+                .Where(c => c.IsActive == true)
+                .Select(c => new
                 {
-                    x.ServiceCategoryId,
-                    x.CategoryCode,
-                    x.Name,
-                    x.Description,
-                    Status = x.IsActive == true ? 1 : 0,
-                    ChildCount = x.Services.Count(s => s.IsActive == true),
-                    x.CreatedAt
+                    c.ServiceCategoryId,
+                    c.CategoryCode,
+                    FieldName = c.Name,
+                    c.Description,
+                    ProcedureCount = c.Services.Count(s => s.IsActive == true),
+                    c.CreatedAt
                 })
+                .Where(x => x.ProcedureCount > 0)
+                .OrderBy(x => x.FieldName)
                 .ToListAsync();
 
             return Ok(fields);

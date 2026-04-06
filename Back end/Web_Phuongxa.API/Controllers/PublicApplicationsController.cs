@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
+using Web_Phuongxa.Application.DTOs;
+using Web_Phuongxa.Application.Interfaces;
 using Web_Phuongxa.Infrastructure;
 
 namespace Web_Phuongxa.API.Controllers
@@ -14,10 +18,160 @@ namespace Web_Phuongxa.API.Controllers
     public class PublicApplicationsController : ControllerBase
     {
         private readonly PhuongXaDbContext _context;
+        private readonly IFileStorageService _fileStorageService;
 
-        public PublicApplicationsController(PhuongXaDbContext context)
+        public PublicApplicationsController(PhuongXaDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
+            _fileStorageService = fileStorageService;
+        }
+
+        private static string BuildApplicationCodePrefix(int year) => $"HS-{year}-";
+
+        private static int TryParseApplicationSequence(string applicationCode, string prefix)
+        {
+            if (string.IsNullOrWhiteSpace(applicationCode) || !applicationCode.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+
+            var sequencePart = applicationCode.Substring(prefix.Length);
+            return int.TryParse(sequencePart, out var sequence) ? sequence : 0;
+        }
+
+        private async Task<string> GenerateNextApplicationCodeAsync()
+        {
+            var year = DateTime.UtcNow.Year;
+            var prefix = BuildApplicationCodePrefix(year);
+            var maxSequence = 0;
+
+            var connection = _context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+
+            try
+            {
+                if (shouldClose)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = "SELECT [ApplicationCode] FROM [Applications] WHERE [ApplicationCode] LIKE @prefix + '%'";
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "@prefix";
+                parameter.Value = prefix;
+                command.Parameters.Add(parameter);
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var applicationCode = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                    maxSequence = Math.Max(maxSequence, TryParseApplicationSequence(applicationCode, prefix));
+                }
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+
+            return $"{prefix}{(maxSequence + 1):D4}";
+        }
+
+        [HttpGet("track")]
+        public async Task<IActionResult> TrackApplication([FromQuery] string applicationCode)
+        {
+            if (string.IsNullOrWhiteSpace(applicationCode))
+            {
+                return BadRequest(new { Message = "Vui lòng nhập mã ApplicationCode." });
+            }
+
+            var normalizedCode = applicationCode.Trim();
+            var connection = _context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+
+            try
+            {
+                if (shouldClose)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"
+SELECT TOP 1
+    a.[ApplicationId],
+    a.[ServiceId],
+    a.[ApplicationCode],
+    a.[ApplicantName],
+    a.[IdentityNumber],
+    a.[DateOfBirth],
+    a.[Address],
+    a.[AttachedFileUrl],
+    a.[Status],
+    a.[HandlerId],
+    a.[CreatedAt],
+    s.[Name] AS [ServiceName],
+    sc.[Name] AS [CategoryName]
+FROM [Applications] a
+LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
+LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
+WHERE a.[ApplicationCode] = @ApplicationCode";
+
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "@ApplicationCode";
+                parameter.Value = normalizedCode;
+                command.Parameters.Add(parameter);
+
+                await using var reader = await command.ExecuteReaderAsync();
+                if (!await reader.ReadAsync())
+                {
+                    return NotFound(new { Message = "Không tìm thấy hồ sơ theo mã ApplicationCode." });
+                }
+
+                object? GetValue(string columnName)
+                {
+                    var ordinal = reader.GetOrdinal(columnName);
+                    return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal);
+                }
+
+                var status = GetValue("Status")?.ToString();
+                var statusText = status?.ToLowerInvariant() switch
+                {
+                    "submitted" => "Đã nộp",
+                    "processing" => "Đang xử lý",
+                    "approved" => "Đã duyệt",
+                    "rejected" => "Từ chối",
+                    _ => status ?? string.Empty
+                };
+
+                return Ok(new
+                {
+                    ApplicationId = GetValue("ApplicationId"),
+                    ServiceId = GetValue("ServiceId"),
+                    ApplicationCode = GetValue("ApplicationCode"),
+                    ApplicantName = GetValue("ApplicantName"),
+                    IdentityNumber = GetValue("IdentityNumber"),
+                    DateOfBirth = GetValue("DateOfBirth"),
+                    Address = GetValue("Address"),
+                    AttachedFileUrl = GetValue("AttachedFileUrl"),
+                    Status = status,
+                    StatusText = statusText,
+                    HandlerId = GetValue("HandlerId"),
+                    CreatedAt = GetValue("CreatedAt"),
+                    ServiceName = GetValue("ServiceName"),
+                    CategoryName = GetValue("CategoryName")
+                });
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
         }
 
         [HttpGet("fields")]
@@ -140,6 +294,123 @@ namespace Web_Phuongxa.API.Controllers
             }
 
             return Ok(procedure);
+        }
+
+        [HttpPost("submit")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> SubmitApplication([FromForm] PublicApplicationSubmitDto request)
+        {
+            if (request.ServiceId <= 0)
+            {
+                return BadRequest(new { Message = "ServiceId là bắt buộc." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ApplicantName) ||
+                string.IsNullOrWhiteSpace(request.IdentityNumber) ||
+                string.IsNullOrWhiteSpace(request.Address))
+            {
+                return BadRequest(new { Message = "Vui lòng nhập đầy đủ thông tin nộp hồ sơ." });
+            }
+
+            if (request.AttachedFile == null || request.AttachedFile.Length == 0)
+            {
+                return BadRequest(new { Message = "Vui lòng đính kèm file hồ sơ." });
+            }
+
+            var service = await _context.Services
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId && s.IsActive == true);
+
+            if (service == null)
+            {
+                return BadRequest(new { Message = "Thủ tục không tồn tại hoặc đang bị ẩn." });
+            }
+
+            var attachedFileUrl = await _fileStorageService.UploadImageAsync(request.AttachedFile, $"applications/{DateTime.UtcNow:yyyy}");
+            if (string.IsNullOrWhiteSpace(attachedFileUrl))
+            {
+                return StatusCode(500, new { Message = "Không thể upload file hồ sơ lên hệ thống lưu trữ." });
+            }
+
+            var applicationCode = await GenerateNextApplicationCodeAsync();
+            var status = "Submitted";
+            var createdAt = DateTime.UtcNow;
+
+            var connection = _context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+
+            try
+            {
+                if (shouldClose)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"INSERT INTO [Applications]
+(
+    [ServiceId],
+    [ApplicationCode],
+    [ApplicantName],
+    [IdentityNumber],
+    [DateOfBirth],
+    [Address],
+    [AttachedFileUrl],
+    [Status],
+    [HandlerId],
+    [CreatedAt]
+)
+OUTPUT INSERTED.[ApplicationId]
+VALUES
+(
+    @ServiceId,
+    @ApplicationCode,
+    @ApplicantName,
+    @IdentityNumber,
+    @DateOfBirth,
+    @Address,
+    @AttachedFileUrl,
+    @Status,
+    NULL,
+    @CreatedAt
+);";
+
+                void AddParameter(string name, object? value)
+                {
+                    var parameter = command.CreateParameter();
+                    parameter.ParameterName = name;
+                    parameter.Value = value ?? DBNull.Value;
+                    command.Parameters.Add(parameter);
+                }
+
+                AddParameter("@ServiceId", request.ServiceId);
+                AddParameter("@ApplicationCode", applicationCode);
+                AddParameter("@ApplicantName", request.ApplicantName.Trim());
+                AddParameter("@IdentityNumber", request.IdentityNumber.Trim());
+                AddParameter("@DateOfBirth", request.DateOfBirth);
+                AddParameter("@Address", request.Address.Trim());
+                AddParameter("@AttachedFileUrl", attachedFileUrl);
+                AddParameter("@Status", status);
+                AddParameter("@CreatedAt", createdAt);
+
+                var insertedId = await command.ExecuteScalarAsync();
+                var applicationId = Convert.ToInt32(insertedId);
+
+                return Ok(new
+                {
+                    Message = "Nộp hồ sơ thành công!",
+                    ApplicationId = applicationId,
+                    ApplicationCode = applicationCode,
+                    AttachedFileUrl = attachedFileUrl
+                });
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
         }
     }
 }
