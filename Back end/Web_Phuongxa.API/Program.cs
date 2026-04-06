@@ -75,11 +75,11 @@ var app = builder.Build();
 // ==========================================
 // PHẦN 2: CẤU HÌNH PIPELINE (Khu vực của 'app')
 // ==========================================
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+//if (app.Environment.IsDevelopment())
+//{
+app.UseSwagger();
+app.UseSwaggerUI();
+//}
 
 app.UseCors("AllowNextJS");
 app.UseAuthentication();
