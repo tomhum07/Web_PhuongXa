@@ -124,7 +124,7 @@ namespace Web_Phuongxa.API.Controllers
             }
 
             var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Người dùng" || r.RoleName == "User");
-            int roleId = defaultRole?.RoleId ?? 5;
+            int roleId = defaultRole?.RoleId ?? 3;
 
             var newUser = new User
             {

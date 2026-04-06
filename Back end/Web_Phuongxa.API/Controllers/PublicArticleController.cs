@@ -21,17 +21,31 @@ namespace Web_Phuongxa.API.Controllers
 
         // 1. Lấy danh sách bài viết đã xuất bản
         [HttpGet]
-        public async Task<IActionResult> GetPublishedArticles()
+        public async Task<IActionResult> GetPublishedArticles([FromQuery] int? categoryId, [FromQuery] string? search)
         {
-            var articles = await _context.Articles
+            var query = _context.Articles
                 .AsNoTracking()
                 .Include(a => a.Category)
                 .Include(a => a.Author)
-                .Where(a => a.Status != null && a.Status.ToLower() == "published")
+                .Where(a => a.Status != null && a.Status.ToLower() == "published");
+
+            if (categoryId.HasValue)
+            {
+                query = query.Where(a => a.CategoryId == categoryId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var keyword = search.Trim();
+                query = query.Where(a => a.Title != null && a.Title.Contains(keyword));
+            }
+
+            var articles = await query
                 .OrderByDescending(a => a.PublishedAt ?? a.CreatedAt)
                 .Select(a => new
                 {
                     a.ArticleId,
+                    a.CategoryId,
                     a.Title,
                     a.Slug,
                     a.Summary,
@@ -50,18 +64,32 @@ namespace Web_Phuongxa.API.Controllers
 
         // 2. Lấy 5 bài viết mới nhất đã xuất bản
         [HttpGet("latest")]
-        public async Task<IActionResult> GetLatestPublishedArticles()
+        public async Task<IActionResult> GetLatestPublishedArticles([FromQuery] int? categoryId, [FromQuery] string? search)
         {
-            var articles = await _context.Articles
+            var query = _context.Articles
                 .AsNoTracking()
                 .Include(a => a.Category)
                 .Include(a => a.Author)
-                .Where(a => a.Status != null && a.Status.ToLower() == "published")
+                .Where(a => a.Status != null && a.Status.ToLower() == "published");
+
+            if (categoryId.HasValue)
+            {
+                query = query.Where(a => a.CategoryId == categoryId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var keyword = search.Trim();
+                query = query.Where(a => a.Title != null && a.Title.Contains(keyword));
+            }
+
+            var articles = await query
                 .OrderByDescending(a => a.PublishedAt ?? a.CreatedAt)
                 .Take(5)
                 .Select(a => new
                 {
                     a.ArticleId,
+                    a.CategoryId,
                     a.Title,
                     a.Slug,
                     a.Summary,

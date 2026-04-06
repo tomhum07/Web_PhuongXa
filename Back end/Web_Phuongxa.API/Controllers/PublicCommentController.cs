@@ -15,11 +15,41 @@ namespace Web_Phuongxa.API.Controllers
     [ApiController]
     public class PublicCommentController : ControllerBase
     {
+        private const int EditableMinutes = 10;
         private readonly PhuongXaDbContext _context;
 
         public PublicCommentController(PhuongXaDbContext context)
         {
             _context = context;
+        }
+
+        private bool TryGetCurrentUserId(out int userId, out IActionResult? errorResult)
+        {
+            userId = 0;
+            errorResult = null;
+
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                errorResult = Unauthorized(new { Message = "Bạn cần đăng nhập để thực hiện thao tác này." });
+                return false;
+            }
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out userId) || userId <= 0)
+            {
+                errorResult = Unauthorized(new { Message = "Không xác định được thông tin người dùng đăng nhập." });
+                return false;
+            }
+
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+            if (!string.Equals(role, "User", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(role, "Người dùng", StringComparison.OrdinalIgnoreCase))
+            {
+                errorResult = Forbid();
+                return false;
+            }
+
+            return true;
         }
 
         // Lấy bình luận công khai của 1 bài viết đã xuất bản
@@ -56,20 +86,48 @@ namespace Web_Phuongxa.API.Controllers
             return Ok(comments);
         }
 
+        // Danh sách comment của chính người dùng
+        [HttpGet("me")]
+        public async Task<IActionResult> GetMyComments()
+        {
+            if (!TryGetCurrentUserId(out var userId, out var errorResult))
+            {
+                return errorResult!;
+            }
+
+            var comments = await _context.Comments
+                .AsNoTracking()
+                .Include(c => c.Article)
+                .ThenInclude(a => a.Category)
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new
+                {
+                    c.CommentId,
+                    c.ArticleId,
+                    ArticleTitle = c.Article != null ? c.Article.Title : null,
+                    CategoryName = c.Article != null && c.Article.Category != null ? c.Article.Category.Name : null,
+                    c.Content,
+                    Status = c.IsActive == true ? 1 : 0,
+                    c.HiddenById,
+                    c.CreatedAt,
+                    c.UpdatedAt,
+                    CanEdit = c.IsActive == true
+                        && c.CreatedAt != null
+                        && EF.Functions.DateDiffMinute(c.CreatedAt.Value, DateTime.UtcNow) <= EditableMinutes
+                })
+                .ToListAsync();
+
+            return Ok(comments);
+        }
+
         // Người dùng bình luận khi đang xem chi tiết bài viết
         [HttpPost]
         public async Task<IActionResult> CreateComment([FromBody] PublicCommentCreateRequestDto request)
         {
-            if (User?.Identity?.IsAuthenticated != true)
+            if (!TryGetCurrentUserId(out var userId, out var errorResult))
             {
-                return Unauthorized(new { Message = "Bạn cần đăng nhập để bình luận." });
-            }
-
-            var role = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (!string.Equals(role, "User", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(role, "Người dùng", StringComparison.OrdinalIgnoreCase))
-            {
-                return Forbid();
+                return errorResult!;
             }
 
             if (request.ArticleId <= 0 || string.IsNullOrWhiteSpace(request.Content))
@@ -82,12 +140,6 @@ namespace Web_Phuongxa.API.Controllers
             if (!articleExists)
             {
                 return BadRequest(new { Message = "Bài viết không tồn tại hoặc chưa được xuất bản!" });
-            }
-
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(userIdClaim, out var userId) || userId <= 0)
-            {
-                return Unauthorized(new { Message = "Không xác định được thông tin người dùng đăng nhập." });
             }
 
             var comment = new Comment
@@ -117,8 +169,118 @@ namespace Web_Phuongxa.API.Controllers
                     Status = comment.IsActive == true ? 1 : 0,
                     comment.HiddenById,
                     comment.CreatedAt,
-                    comment.UpdatedAt
+                    comment.UpdatedAt,
+                    CanEdit = true
                 }
+            });
+        }
+
+        // Người dùng sửa bình luận của chính mình
+        [HttpPut("{commentId}")]
+        public async Task<IActionResult> UpdateOwnComment(int commentId, [FromBody] PublicCommentUpdateRequestDto request)
+        {
+            if (!TryGetCurrentUserId(out var userId, out var errorResult))
+            {
+                return errorResult!;
+            }
+
+            if (commentId <= 0 || string.IsNullOrWhiteSpace(request.Content))
+            {
+                return BadRequest(new { Message = "Thiếu dữ liệu comment hợp lệ!" });
+            }
+
+            var comment = await _context.Comments
+                .Include(c => c.User)
+                .Include(c => c.Article)
+                .FirstOrDefaultAsync(c => c.CommentId == commentId);
+
+            if (comment == null)
+            {
+                return NotFound(new { Message = "Không tìm thấy bình luận!" });
+            }
+
+            if (comment.UserId != userId)
+            {
+                return Forbid();
+            }
+
+            if (comment.IsActive != true)
+            {
+                return BadRequest(new { Message = "Bình luận đang bị ẩn, không thể chỉnh sửa." });
+            }
+
+            if (comment.CreatedAt.HasValue && DateTime.UtcNow - comment.CreatedAt.Value > TimeSpan.FromMinutes(EditableMinutes))
+            {
+                return BadRequest(new { Message = $"Chỉ có thể sửa bình luận trong vòng {EditableMinutes} phút sau khi đăng." });
+            }
+
+            if (comment.Article == null || comment.Article.Status == null || comment.Article.Status.ToLower() != "published")
+            {
+                return BadRequest(new { Message = "Bình luận chỉ có thể sửa trên bài viết đã xuất bản." });
+            }
+
+            comment.Content = request.Content.Trim();
+            comment.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Cập nhật bình luận thành công!",
+                Comment = new
+                {
+                    comment.CommentId,
+                    comment.ArticleId,
+                    comment.UserId,
+                    UserName = comment.User.FullName,
+                    comment.Content,
+                    Status = comment.IsActive == true ? 1 : 0,
+                    comment.HiddenById,
+                    comment.CreatedAt,
+                    comment.UpdatedAt,
+                    CanEdit = true
+                }
+            });
+        }
+
+        // Người dùng xóa bình luận của chính mình
+        [HttpDelete("{commentId}")]
+        public async Task<IActionResult> DeleteOwnComment(int commentId)
+        {
+            if (!TryGetCurrentUserId(out var userId, out var errorResult))
+            {
+                return errorResult!;
+            }
+
+            var comment = await _context.Comments
+                .Include(c => c.Article)
+                .FirstOrDefaultAsync(c => c.CommentId == commentId);
+
+            if (comment == null)
+            {
+                return NotFound(new { Message = "Không tìm thấy bình luận!" });
+            }
+
+            if (comment.UserId != userId)
+            {
+                return Forbid();
+            }
+
+            if (comment.IsActive != true)
+            {
+                return BadRequest(new { Message = "Bình luận đã ở trạng thái không hiển thị." });
+            }
+
+            comment.IsActive = false;
+            comment.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Xóa bình luận thành công!",
+                CommentId = comment.CommentId,
+                Status = 0
             });
         }
     }

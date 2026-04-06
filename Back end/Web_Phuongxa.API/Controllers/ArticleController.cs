@@ -101,6 +101,42 @@ namespace Web_Phuongxa.API.Controllers
             return Ok(articles);
         }
 
+        // 1.2. Lấy danh sách bài viết theo tác giả
+        [HttpGet("author/{authorId}")]
+        public async Task<IActionResult> GetArticlesByAuthor(int authorId)
+        {
+            var authorExists = await _context.Users.AnyAsync(u => u.UserId == authorId);
+            if (!authorExists)
+            {
+                return NotFound(new { Message = "Không tìm thấy tác giả!" });
+            }
+
+            var articles = await _context.Articles
+                .AsNoTracking()
+                .Include(a => a.Category)
+                .Include(a => a.Author)
+                .Where(a => a.AuthorId == authorId)
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => new
+                {
+                    a.ArticleId,
+                    a.AuthorId,
+                    a.CategoryId,
+                    a.Title,
+                    a.Slug,
+                    a.Summary,
+                    a.ThumbnailUrl,
+                    a.ViewCount,
+                    a.Status,
+                    a.CreatedAt,
+                    CategoryName = a.Category != null ? a.Category.Name : null,
+                    AuthorName = a.Author != null ? a.Author.FullName : null
+                })
+                .ToListAsync();
+
+            return Ok(articles);
+        }
+
         // 2. Lấy chi tiết 1 bài viết theo ID
         [HttpGet("{id}")]
         public async Task<IActionResult> GetArticleById(int id)
