@@ -136,6 +136,60 @@ namespace Web_Phuongxa.API.Controllers
             return Ok(new { Message = "Đã ẩn các bản ghi không còn file trên server.", Count = toHide.Count });
         }
 
+        [HttpPatch("{imageId:int}/hide")]
+        public async Task<IActionResult> HideImage(int imageId)
+        {
+            var image = await _context.GalleryImages.FirstOrDefaultAsync(x => x.ImageId == imageId);
+            if (image == null)
+            {
+                return NotFound(new { Message = "Không tìm thấy ảnh." });
+            }
+
+            if (!image.IsVisible)
+            {
+                return Ok(new { Message = "Ảnh đã ở trạng thái ẩn.", image.ImageId, image.IsVisible });
+            }
+
+            image.IsVisible = false;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Ẩn ảnh thành công.", image.ImageId, image.IsVisible });
+        }
+
+        [HttpDelete("{imageId:int}")]
+        public async Task<IActionResult> DeleteImage(int imageId, [FromQuery] bool deleteFile = true)
+        {
+            var image = await _context.GalleryImages.FirstOrDefaultAsync(x => x.ImageId == imageId);
+            if (image == null)
+            {
+                return NotFound(new { Message = "Không tìm thấy ảnh." });
+            }
+
+            var fileExisted = false;
+            var fileDeleted = false;
+
+            if (deleteFile && !string.IsNullOrWhiteSpace(image.ImageUrl))
+            {
+                fileExisted = await ImageExistsAsync(image.ImageUrl);
+                if (fileExisted)
+                {
+                    fileDeleted = await _fileStorageService.DeleteAsync(image.ImageUrl);
+                }
+            }
+
+            _context.GalleryImages.Remove(image);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Xóa ảnh thành công.",
+                imageId,
+                deleteFile,
+                fileExisted,
+                fileDeleted
+            });
+        }
+
         [HttpPost("upload")]
         public async Task<IActionResult> UploadImage([FromForm] UploadImageDto request)
         {

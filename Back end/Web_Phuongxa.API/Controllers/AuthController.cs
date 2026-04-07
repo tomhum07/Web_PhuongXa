@@ -50,6 +50,59 @@ namespace Web_Phuongxa.API.Controllers
             throw new InvalidOperationException($"Missing {key} configuration.");
         }
 
+        private string? GetClientIpAddress()
+        {
+            var forwardedFor = Request.Headers["X-Forwarded-For"].ToString();
+            if (!string.IsNullOrWhiteSpace(forwardedFor))
+            {
+                var first = forwardedFor.Split(',')[0].Trim();
+                if (!string.IsNullOrWhiteSpace(first))
+                {
+                    return first;
+                }
+            }
+
+            var realIp = Request.Headers["X-Real-IP"].ToString();
+            if (!string.IsNullOrWhiteSpace(realIp))
+            {
+                return realIp.Trim();
+            }
+
+            return HttpContext.Connection.RemoteIpAddress?.ToString();
+        }
+
+        private static string BuildLoginDescription(User user)
+        {
+            var roleName = (user.Role?.RoleName ?? string.Empty).Trim().ToLowerInvariant();
+            return roleName switch
+            {
+                "admin" => "Admin đăng nhập hệ thống thành công",
+                "editor" => "Editor đăng nhập hệ thống thành công",
+                "cán bộ" => "Cán bộ đăng nhập hệ thống thành công",
+                "nguời dùng" => "Người dùng đăng nhập hệ thống thành công",
+                "người dùng" => "Người dùng đăng nhập hệ thống thành công",
+                "user" => "Người dùng đăng nhập hệ thống thành công",
+                _ => $"{user.FullName} đăng nhập hệ thống thành công"
+            };
+        }
+
+        private async Task WriteLoginAuditLogAsync(User user)
+        {
+            var log = new AuditLog
+            {
+                UserId = user.UserId,
+                ActionType = "LOGIN",
+                TableName = "Users",
+                RecordId = user.UserId,
+                IpAddress = GetClientIpAddress(),
+                Description = BuildLoginDescription(user),
+                CreatedAt = DateTime.UtcNow.AddHours(7)
+            };
+
+            _context.AuditLogs.Add(log);
+            await _context.SaveChangesAsync();
+        }
+
         // ==========================================
         // CÁC HÀM TIỆN ÍCH (BĂM MẬT KHẨU BCRYPT)
         // ==========================================
@@ -72,6 +125,17 @@ namespace Web_Phuongxa.API.Controllers
             }
         }
 
+        private static TimeSpan GetTokenLifetimeByRole(string? roleName)
+        {
+            var normalizedRole = (roleName ?? string.Empty).Trim().ToLowerInvariant();
+            return normalizedRole switch
+            {
+                "admin" => TimeSpan.FromMinutes(30),
+                "editor" => TimeSpan.FromMinutes(30),
+                _ => TimeSpan.FromHours(2)
+            };
+        }
+
         // ==========================================
         // API 1: ĐĂNG NHẬP
         // ==========================================
@@ -80,12 +144,24 @@ namespace Web_Phuongxa.API.Controllers
         {
             var user = await _context.Users
                 .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Email == request.Email && u.IsActive == true);
+                .FirstOrDefaultAsync(u => u.Email == request.Email);
 
-            if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
+            if (user == null)
             {
-                return Unauthorized(new { Message = "Sai email, mật khẩu hoặc tài khoản đã bị khóa!" });
+                return Unauthorized(new { Message = "Sai email hoặc mật khẩu!" });
             }
+
+            if (user.IsActive != true)
+            {
+                return Unauthorized(new { Message = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!" });
+            }
+
+            if (!VerifyPassword(request.Password, user.PasswordHash))
+            {
+                return Unauthorized(new { Message = "Sai email hoặc mật khẩu!" });
+            }
+
+            await WriteLoginAuditLogAsync(user);
 
             var claims = new[]
             {
@@ -102,11 +178,13 @@ namespace Web_Phuongxa.API.Controllers
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyValue));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+            var tokenLifetime = GetTokenLifetimeByRole(user.Role?.RoleName);
+
             var tokenDescriptor = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(1),
+                expires: DateTime.UtcNow.Add(tokenLifetime),
                 signingCredentials: creds
             );
 
@@ -179,8 +257,13 @@ namespace Web_Phuongxa.API.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                // Trả về OK kể cả khi không tìm thấy email để tránh hacker dò rỉ tài khoản
+                // Trả về OK khi không tìm thấy email để tránh lộ thông tin tài khoản
                 return Ok(new { Message = "Nếu email tồn tại, hệ thống đã gửi mã xác nhận." });
+            }
+
+            if (user.IsActive != true)
+            {
+                return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
             // Tạo mã OTP 6 số ngẫu nhiên
@@ -252,6 +335,11 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Mã xác minh không hợp lệ." });
             }
 
+            if (user.IsActive != true)
+            {
+                return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
+            }
+
             if (user.ResetOtpExpiry < DateTime.Now)
             {
                 return BadRequest(new { Message = "Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới." });
@@ -276,6 +364,11 @@ namespace Web_Phuongxa.API.Controllers
             if (user == null || user.ResetOtp != request.Otp)
             {
                 return BadRequest(new { Message = "Yêu cầu không hợp lệ hoặc phiên đổi mật khẩu đã hết hạn." });
+            }
+
+            if (user.IsActive != true)
+            {
+                return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
             if (user.ResetOtpExpiry < DateTime.Now)

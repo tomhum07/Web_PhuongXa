@@ -8,5 +8,6 @@ namespace Web_Phuongxa.Application.Interfaces
         Task<string> UploadImageAsync(IFormFile file, string subFolder = "");
         Task<Stream?> DownloadImageAsync(string blobReference);
         Task<bool> ExistsAsync(string blobReference);
+        Task<bool> DeleteAsync(string blobReference);
     }
 }

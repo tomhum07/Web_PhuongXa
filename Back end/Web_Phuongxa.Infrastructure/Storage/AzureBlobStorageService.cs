@@ -76,6 +76,18 @@ namespace Web_Phuongxa.Infrastructure.Storage
             return await blobClient.ExistsAsync();
         }
 
+        public async Task<bool> DeleteAsync(string blobReference)
+        {
+            var blobClient = await GetBlobClientAsync(blobReference);
+            if (blobClient == null)
+            {
+                return false;
+            }
+
+            var response = await blobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots);
+            return response.Value;
+        }
+
         private async Task<BlobContainerClient?> GetContainerClientAsync()
         {
             if (string.IsNullOrWhiteSpace(_connectionString) || string.IsNullOrWhiteSpace(_containerName))
