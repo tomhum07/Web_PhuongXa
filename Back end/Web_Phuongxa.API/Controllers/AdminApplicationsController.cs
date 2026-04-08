@@ -57,145 +57,108 @@ namespace Web_Phuongxa.API.Controllers
             return $"{prefix}_{codePart}";
         }
 
-        private static string? GetString(DbDataReader reader, string columnName)
+        private static string NormalizeApplicationStatus(string? status)
         {
-            var ordinal = reader.GetOrdinal(columnName);
-            return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
-        }
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                return string.Empty;
+            }
 
-        private static int? GetInt32(DbDataReader reader, string columnName)
-        {
-            var ordinal = reader.GetOrdinal(columnName);
-            return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
-        }
-
-        private static DateTime? GetDateTime(DbDataReader reader, string columnName)
-        {
-            var ordinal = reader.GetOrdinal(columnName);
-            return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+            var normalized = status.Trim().ToLowerInvariant();
+            return normalized switch
+            {
+                "submitted" or "danop" or "da nop" or "đã nộp" => "Da nop",
+                "processing" or "dangu ly" or "dang xu ly" or "đang xử lý" => "Dang xu ly",
+                "approved" or "hoan thanh" or "hoàn thành" => "Hoan thanh",
+                "rejected" or "từ chối" or "tu choi" or "tu chối" => "Tu choi",
+                _ => string.Empty
+            };
         }
 
         private static string GetStatusText(string? status)
         {
-            return status?.Trim().ToLowerInvariant() switch
-            {
-                "submitted" => "Đã nộp",
-                "processing" => "Đang xử lý",
-                "approved" => "Đã duyệt",
-                "rejected" => "Từ chối",
-                _ => string.IsNullOrWhiteSpace(status) ? string.Empty : status
-            };
+            var normalized = NormalizeApplicationStatus(status);
+            return string.IsNullOrWhiteSpace(normalized)
+                ? string.IsNullOrWhiteSpace(status) ? string.Empty : status
+                : normalized;
         }
 
         private static bool IsValidApplicationStatus(string? status)
         {
-            return status != null && (
-                status.Equals("Submitted", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Processing", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Approved", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Rejected", StringComparison.OrdinalIgnoreCase));
+            return !string.IsNullOrWhiteSpace(NormalizeApplicationStatus(status));
         }
 
-        private async Task<List<AdminApplicationDto>> ReadApplicationsAsync(string sql, Action<DbCommand>? configureCommand = null)
+        private static AdminApplicationDto MapApplication(Web_Phuongxa.Domain.Entities.Application application)
         {
-            var results = new List<AdminApplicationDto>();
-            var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != ConnectionState.Open;
-
-            try
+            return new AdminApplicationDto
             {
-                if (shouldClose)
-                {
-                    await connection.OpenAsync();
-                }
-
-                await using var command = connection.CreateCommand();
-                command.CommandText = sql;
-                configureCommand?.Invoke(command);
-
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var status = GetString(reader, "Status");
-                    results.Add(new AdminApplicationDto
-                    {
-                        ApplicationId = reader.GetInt32(reader.GetOrdinal("ApplicationId")),
-                        ServiceId = reader.GetInt32(reader.GetOrdinal("ServiceId")),
-                        ServiceCode = GetString(reader, "ServiceCode"),
-                        ServiceName = GetString(reader, "ServiceName"),
-                        CategoryName = GetString(reader, "CategoryName"),
-                        ApplicationCode = GetString(reader, "ApplicationCode") ?? string.Empty,
-                        ApplicantName = GetString(reader, "ApplicantName") ?? string.Empty,
-                        IdentityNumber = GetString(reader, "IdentityNumber") ?? string.Empty,
-                        DateOfBirth = GetDateTime(reader, "DateOfBirth"),
-                        Address = GetString(reader, "Address") ?? string.Empty,
-                        AttachedFileUrl = GetString(reader, "AttachedFileUrl"),
-                        Status = status,
-                        StatusText = GetStatusText(status),
-                        HandlerId = GetInt32(reader, "HandlerId"),
-                        CreatedAt = GetDateTime(reader, "CreatedAt")
-                    });
-                }
-            }
-            finally
-            {
-                if (shouldClose)
-                {
-                    await connection.CloseAsync();
-                }
-            }
-
-            return results;
+                ApplicationId = application.ApplicationId,
+                ServiceId = application.ServiceId,
+                ServiceCode = application.Service != null ? application.Service.ServiceCode : null,
+                ServiceName = application.Service != null ? application.Service.Name : null,
+                CategoryName = application.Service != null && application.Service.ServiceCategory != null ? application.Service.ServiceCategory.Name : null,
+                ApplicationCode = application.ApplicationCode,
+                ApplicantName = EF.Property<string>(application, "ApplicantName") ?? string.Empty,
+                IdentityNumber = EF.Property<string>(application, "IdentityNumber") ?? string.Empty,
+                DateOfBirth = EF.Property<DateTime?>(application, "DateOfBirth"),
+                Address = EF.Property<string>(application, "Address") ?? string.Empty,
+                AttachedFileUrl = EF.Property<string>(application, "AttachedFileUrl"),
+                Status = application.Status,
+                StatusText = GetStatusText(application.Status),
+                HandlerId = application.HandlerId,
+                CreatedAt = EF.Property<DateTime?>(application, "CreatedAt")
+            };
         }
 
-        private async Task<AdminApplicationDto?> ReadSingleApplicationAsync(string sql, Action<DbCommand>? configureCommand = null)
+        private IQueryable<AdminApplicationDto> ProjectApplications(IQueryable<Web_Phuongxa.Domain.Entities.Application> query)
         {
-            var applications = await ReadApplicationsAsync(sql, configureCommand);
-            return applications.FirstOrDefault();
+            return query.Select(application => new AdminApplicationDto
+            {
+                ApplicationId = application.ApplicationId,
+                ServiceId = application.ServiceId,
+                ServiceCode = application.Service != null ? application.Service.ServiceCode : null,
+                ServiceName = application.Service != null ? application.Service.Name : null,
+                CategoryName = application.Service != null && application.Service.ServiceCategory != null ? application.Service.ServiceCategory.Name : null,
+                ApplicationCode = application.ApplicationCode,
+                ApplicantName = EF.Property<string>(application, "ApplicantName") ?? string.Empty,
+                IdentityNumber = EF.Property<string>(application, "IdentityNumber") ?? string.Empty,
+                DateOfBirth = EF.Property<DateTime?>(application, "DateOfBirth"),
+                Address = EF.Property<string>(application, "Address") ?? string.Empty,
+                AttachedFileUrl = EF.Property<string>(application, "AttachedFileUrl"),
+                Status = application.Status,
+                StatusText = GetStatusText(application.Status),
+                HandlerId = application.HandlerId,
+                CreatedAt = EF.Property<DateTime?>(application, "CreatedAt")
+            });
         }
 
         [HttpGet("applications")]
         [HttpGet]
         public async Task<IActionResult> GetApplications([FromQuery] string? status = null)
         {
-            var sql = @"
-SELECT
-    a.[ApplicationId],
-    a.[ServiceId],
-    s.[ServiceCode],
-    s.[Name] AS [ServiceName],
-    sc.[Name] AS [CategoryName],
-    a.[ApplicationCode],
-    a.[ApplicantName],
-    a.[IdentityNumber],
-    a.[DateOfBirth],
-    a.[Address],
-    a.[AttachedFileUrl],
-    a.[Status],
-    a.[HandlerId],
-    a.[CreatedAt]
-FROM [Applications] a
-LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
-LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
-WHERE 1 = 1";
+            var query = _context.Applications
+                .AsNoTracking()
+                .Include(a => a.Service)
+                    .ThenInclude(s => s.ServiceCategory)
+                .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(status))
+            var normalizedStatus = NormalizeApplicationStatus(status);
+            if (!string.IsNullOrWhiteSpace(normalizedStatus))
             {
-                sql += " AND a.[Status] = @Status";
+                query = normalizedStatus switch
+                {
+                    "Da nop" => query.Where(a => a.Status != null && (a.Status == "Da nop" || a.Status == "Submitted")),
+                    "Dang xu ly" => query.Where(a => a.Status != null && (a.Status == "Dang xu ly" || a.Status == "Processing")),
+                    "Hoan thanh" => query.Where(a => a.Status != null && (a.Status == "Hoan thanh" || a.Status == "Approved")),
+                    "Tu choi" => query.Where(a => a.Status != null && (a.Status == "Tu choi" || a.Status == "Rejected")),
+                    _ => query
+                };
             }
 
-            sql += " ORDER BY a.[CreatedAt] DESC, a.[ApplicationId] DESC";
-
-            var applications = await ReadApplicationsAsync(sql, command =>
-            {
-                if (!string.IsNullOrWhiteSpace(status))
-                {
-                    var parameter = command.CreateParameter();
-                    parameter.ParameterName = "@Status";
-                    parameter.Value = status.Trim();
-                    command.Parameters.Add(parameter);
-                }
-            });
+            var applications = await ProjectApplications(query)
+                .OrderByDescending(a => a.CreatedAt)
+                .ThenByDescending(a => a.ApplicationId)
+                .ToListAsync();
 
             return Ok(applications);
         }
@@ -203,34 +166,13 @@ WHERE 1 = 1";
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetApplicationById(int id)
         {
-            var sql = @"
-SELECT
-    a.[ApplicationId],
-    a.[ServiceId],
-    s.[ServiceCode],
-    s.[Name] AS [ServiceName],
-    sc.[Name] AS [CategoryName],
-    a.[ApplicationCode],
-    a.[ApplicantName],
-    a.[IdentityNumber],
-    a.[DateOfBirth],
-    a.[Address],
-    a.[AttachedFileUrl],
-    a.[Status],
-    a.[HandlerId],
-    a.[CreatedAt]
-FROM [Applications] a
-LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
-LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
-WHERE a.[ApplicationId] = @Id";
-
-            var application = await ReadSingleApplicationAsync(sql, command =>
-            {
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "@Id";
-                parameter.Value = id;
-                command.Parameters.Add(parameter);
-            });
+            var application = await ProjectApplications(
+                    _context.Applications
+                        .AsNoTracking()
+                        .Include(a => a.Service)
+                            .ThenInclude(s => s.ServiceCategory)
+                        .Where(a => a.ApplicationId == id))
+                .FirstOrDefaultAsync();
 
             if (application == null)
             {
@@ -243,9 +185,10 @@ WHERE a.[ApplicationId] = @Id";
         [HttpPut("{id:int}/status")]
         public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] AdminApplicationStatusUpdateDto request)
         {
-            if (!IsValidApplicationStatus(request.Status))
+            var normalizedStatus = NormalizeApplicationStatus(request.Status);
+            if (string.IsNullOrWhiteSpace(normalizedStatus))
             {
-                return BadRequest(new { Message = "Trạng thái không hợp lệ. Chỉ chấp nhận Submitted, Processing, Approved, Rejected." });
+                return BadRequest(new { Message = "Trang thai khong hop le. Chi chap nhan: Da nop, Dang xu ly, Hoan thanh, Tu choi." });
             }
 
             if (request.HandlerId.HasValue)
@@ -253,61 +196,36 @@ WHERE a.[ApplicationId] = @Id";
                 var handlerExists = await _context.Users.AnyAsync(u => u.UserId == request.HandlerId.Value);
                 if (!handlerExists)
                 {
-                    return BadRequest(new { Message = "HandlerId không tồn tại." });
+                    return BadRequest(new { Message = "HandlerId khong ton tai." });
                 }
             }
 
-            var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != ConnectionState.Open;
-
-            try
+            var application = await _context.Applications.FirstOrDefaultAsync(a => a.ApplicationId == id);
+            if (application == null)
             {
-                if (shouldClose)
-                {
-                    await connection.OpenAsync();
-                }
-
-                await using var command = connection.CreateCommand();
-                command.CommandText = @"
-UPDATE [Applications]
-SET [Status] = @Status,
-    [HandlerId] = COALESCE(@HandlerId, [HandlerId])
-WHERE [ApplicationId] = @Id;
-SELECT @@ROWCOUNT;";
-
-                void AddParameter(string name, object? value)
-                {
-                    var parameter = command.CreateParameter();
-                    parameter.ParameterName = name;
-                    parameter.Value = value ?? DBNull.Value;
-                    command.Parameters.Add(parameter);
-                }
-
-                AddParameter("@Id", id);
-                AddParameter("@Status", request.Status.Trim());
-                AddParameter("@HandlerId", request.HandlerId);
-
-                var affected = Convert.ToInt32(await command.ExecuteScalarAsync());
-                if (affected == 0)
-                {
-                    return NotFound(new { Message = "Không tìm thấy hồ sơ!" });
-                }
-
-                return Ok(new
-                {
-                    Message = "Cập nhật trạng thái hồ sơ thành công!",
-                    ApplicationId = id,
-                    Status = request.Status.Trim(),
-                    StatusText = GetStatusText(request.Status)
-                });
+                return NotFound(new { Message = "Không tìm thấy hồ sơ!" });
             }
-            finally
+
+            application.Status = normalizedStatus;
+            application.HandlerId = request.HandlerId;
+            await _context.SaveChangesAsync();
+
+            var refreshed = await ProjectApplications(
+                    _context.Applications
+                        .AsNoTracking()
+                        .Include(a => a.Service)
+                            .ThenInclude(s => s.ServiceCategory)
+                        .Where(a => a.ApplicationId == id))
+                .FirstAsync();
+
+            return Ok(new
             {
-                if (shouldClose)
-                {
-                    await connection.CloseAsync();
-                }
-            }
+                Message = "Cập nhật trạng thái hồ sơ thành công!",
+                ApplicationId = id,
+                Status = normalizedStatus,
+                StatusText = GetStatusText(normalizedStatus),
+                Application = refreshed
+            });
         }
 
         [HttpGet("fields")]
@@ -426,6 +344,13 @@ SELECT @@ROWCOUNT;";
             }
 
             category.IsActive = true;
+
+            var services = await _context.Services.Where(s => s.ServiceCategoryId == id).ToListAsync();
+            foreach (var service in services)
+            {
+                service.IsActive = true;
+            }
+
             await _context.SaveChangesAsync();
             return Ok(new { Message = "Hiển thị lĩnh vực thành công!", FieldId = id, Status = 1 });
         }
@@ -436,6 +361,7 @@ SELECT @@ROWCOUNT;";
             var query = _context.Services
                 .AsNoTracking()
                 .Include(s => s.ServiceCategory)
+                .Where(s => s.IsActive == true && s.ServiceCategory != null && s.ServiceCategory.IsActive == true)
                 .AsQueryable();
 
             if (serviceCategoryId.HasValue)
@@ -474,7 +400,8 @@ SELECT @@ROWCOUNT;";
 
             var procedures = await _context.Services
                 .AsNoTracking()
-                .Where(s => s.ServiceCategoryId == serviceCategoryId)
+                .Include(s => s.ServiceCategory)
+                .Where(s => s.ServiceCategoryId == serviceCategoryId && s.IsActive == true && s.ServiceCategory != null && s.ServiceCategory.IsActive == true)
                 .OrderBy(s => s.ServiceId)
                 .Select(s => new
                 {
