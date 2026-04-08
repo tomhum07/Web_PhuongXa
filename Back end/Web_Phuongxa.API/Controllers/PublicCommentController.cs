@@ -42,7 +42,7 @@ namespace Web_Phuongxa.API.Controllers
             }
 
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (!string.Equals(role, "User", StringComparison.OrdinalIgnoreCase)
+            if (!string.Equals(role, "Viewer", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(role, "Người dùng", StringComparison.OrdinalIgnoreCase))
             {
                 errorResult = Forbid();

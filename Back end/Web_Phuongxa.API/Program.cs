@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Web_Phuongxa.Application.Interfaces;
@@ -10,6 +12,28 @@ using Web_Phuongxa.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
+static string GetRequiredJwtSetting(WebApplicationBuilder builder, string key)
+{
+    var value = builder.Configuration[key];
+    if (!string.IsNullOrWhiteSpace(value))
+    {
+        return value;
+    }
+
+    if (builder.Environment.IsDevelopment())
+    {
+        return key switch
+        {
+            "Authentication:Jwt:Issuer" => "PhuongxaAPI",
+            "Authentication:Jwt:Audience" => "PhuongxaClient",
+            "Authentication:Jwt:Key" => "SuperSecretKeyThatIsAtLeast32BytesLong123!",
+            _ => throw new InvalidOperationException($"Missing {key} configuration.")
+        };
+    }
+
+    throw new InvalidOperationException($"Missing {key} configuration.");
+}
+
 // ==========================================
 // PHẦN 1: THÊM DỊCH VỤ (Khu vực của 'builder')
 // ==========================================
@@ -17,14 +41,29 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Web_Phuongxa API", Version = "v1" });
 
-var jwtIssuer = builder.Configuration["Authentication:Jwt:Issuer"]
-    ?? (builder.Environment.IsDevelopment() ? "PhuongxaAPI" : throw new InvalidOperationException("Missing Authentication:Jwt:Issuer configuration."));
-var jwtAudience = builder.Configuration["Authentication:Jwt:Audience"]
-    ?? (builder.Environment.IsDevelopment() ? "PhuongxaClient" : throw new InvalidOperationException("Missing Authentication:Jwt:Audience configuration."));
-var jwtKey = builder.Configuration["Authentication:Jwt:Key"]
-    ?? (builder.Environment.IsDevelopment() ? "SuperSecretKeyThatIsAtLeast32BytesLong123!" : throw new InvalidOperationException("Missing Authentication:Jwt:Key configuration."));
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Nhập JWT token vào đây (không cần gõ 'Bearer').",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer")] = new List<string>()
+    });
+});
+
+var jwtIssuer = GetRequiredJwtSetting(builder, "Authentication:Jwt:Issuer");
+var jwtAudience = GetRequiredJwtSetting(builder, "Authentication:Jwt:Audience");
+var jwtKey = GetRequiredJwtSetting(builder, "Authentication:Jwt:Key");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -37,6 +76,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Hỗ trợ cả 2 kiểu nhập trên Swagger:
+                // 1) token thuần
+                // 2) Bearer <token>
+                var authorization = context.Request.Headers.Authorization.ToString();
+                if (!string.IsNullOrWhiteSpace(authorization))
+                {
+                    const string bearerPrefix = "Bearer ";
+                    if (authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var raw = authorization.Substring(bearerPrefix.Length).Trim();
+                        if (raw.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            raw = raw.Substring(bearerPrefix.Length).Trim();
+                        }
+
+                        context.Token = raw;
+                    }
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 
