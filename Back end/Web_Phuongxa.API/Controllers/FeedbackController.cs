@@ -41,7 +41,7 @@ namespace Web_Phuongxa.API.Controllers
                 SenderName = request.FullName,
                 Email = request.Email,
                 Content = finalContent,
-                Status = "Cho xu ly", // Trạng thái mặc định
+                Status = "Chua doc",
                 CreatedAt = DateTime.UtcNow
             };
 
