@@ -43,7 +43,7 @@ namespace Web_Phuongxa.API.Controllers
                 SenderName = request.FullName,
                 Email = request.Email,
                 Content = finalContent,
-                Status = "Chưa đọc",
+                Status = "Chua doc",
                 CreatedAt = GetVnNow()
             };
 
@@ -92,7 +92,7 @@ namespace Web_Phuongxa.API.Controllers
             // Cập nhật thông tin phản hồi
             feedback.ReplyContent = request.ReplyContent;
             feedback.RepliedById = request.RepliedById;
-            feedback.Status = "Đã phản hồi "; // Đổi trạng thái
+            feedback.Status = "Da phan hoi "; // Đổi trạng thái
 
             _context.Feedbacks.Update(feedback);
             await _context.SaveChangesAsync();

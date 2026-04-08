@@ -25,9 +25,9 @@ namespace Web_Phuongxa.API.Controllers
             var normalized = status.Trim().ToLowerInvariant();
             return normalized switch
             {
-                "chuadoc" or "chua doc" or "chưa đọc" or "unread" or "cho xu ly" or "chờ xử lý" => "Chưa đọc",
-                "dadoc" or "da doc" or "đã đọc" or "read" => "Đã đọc",
-                "daphanhoi" or "da phan hoi" or "đã phản hồi" or "phan hoi" or "phản hồi" or "replied" => "Đã phản hồi",
+                "chuadoc" or "chua doc" or "chua_doc" or "unread" or "cho xu ly" or "cho_xu_ly" => "Chua doc",
+                "dadoc" or "da doc" or "da_doc" or "read" => "Da doc",
+                "daphanhoi" or "da phan hoi" or "da_phan_hoi" or "phan hoi" or "phan_hoi" or "replied" => "Da phan hoi",
                 _ => string.Empty
             };
         }
@@ -47,7 +47,7 @@ namespace Web_Phuongxa.API.Controllers
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                var normalizedKeyword = keyword.Trim().ToLower();
+                var normalizedKeyword = keyword.Trim().ToLowerInvariant();
                 query = query.Where(f =>
                     f.SenderName.ToLower().Contains(normalizedKeyword) ||
                     f.Email.ToLower().Contains(normalizedKeyword) ||
@@ -59,17 +59,17 @@ namespace Web_Phuongxa.API.Controllers
                 var normalizedStatus = NormalizeFeedbackStatus(status);
                 if (string.IsNullOrWhiteSpace(normalizedStatus))
                 {
-                    return BadRequest(new { Message = "Trạng thái không hợp lệ. Chỉ chấp nhận: Chưa đọc, Đã đọc, Đã phản hồi." });
+                    return BadRequest(new { Message = "Trang thai khong hop le. Chi chap nhan: Chua doc, Da doc, Da phan hoi." });
                 }
 
                 query = normalizedStatus switch
                 {
-                    "Chưa đọc" => query.Where(f => f.Status != null &&
-                        (f.Status == "Chưa đọc" || f.Status == "Chua doc" || f.Status == "Cho xu ly" || f.Status == "Chờ xử lý")),
-                    "Đã đọc" => query.Where(f => f.Status != null &&
-                        (f.Status == "Đã đọc" || f.Status == "Da doc")),
-                    "Đã phản hồi" => query.Where(f => f.Status != null &&
-                        (f.Status == "Đã phản hồi" || f.Status == "Da phan hoi" || f.Status == "Da phan hoi ")),
+                    "Chua doc" => query.Where(f => f.Status != null &&
+                        (f.Status == "Chua doc" || f.Status == "Cho xu ly")),
+                    "Da doc" => query.Where(f => f.Status != null &&
+                        f.Status == "Da doc"),
+                    "Da phan hoi" => query.Where(f => f.Status != null &&
+                        f.Status == "Da phan hoi"),
                     _ => query
                 };
             }
@@ -98,20 +98,20 @@ namespace Web_Phuongxa.API.Controllers
         {
             if (string.IsNullOrWhiteSpace(request.Status))
             {
-                return BadRequest(new { Message = "Trạng thái không được để trống." });
+                return BadRequest(new { Message = "Trang thai khong duoc de trong." });
             }
 
             var targetStatus = NormalizeFeedbackStatus(request.Status);
 
             if (string.IsNullOrWhiteSpace(targetStatus))
             {
-                return BadRequest(new { Message = "Trạng thái không hợp lệ. Chỉ chấp nhận: Chưa đọc, Đã đọc, Đã phản hồi." });
+                return BadRequest(new { Message = "Trang thai khong hop le. Chi chap nhan: Chua doc, Da doc, Da phan hoi." });
             }
 
             var feedback = await _context.Feedbacks.FirstOrDefaultAsync(f => f.FeedbackId == id);
             if (feedback == null)
             {
-                return NotFound(new { Message = "Không tìm thấy phản ánh." });
+                return NotFound(new { Message = "Khong tim thay phan anh." });
             }
 
             feedback.Status = targetStatus;
@@ -119,7 +119,7 @@ namespace Web_Phuongxa.API.Controllers
 
             return Ok(new
             {
-                Message = "Cập nhật trạng thái thành công.",
+                Message = "Cap nhat trang thai thanh cong.",
                 feedback.FeedbackId,
                 feedback.Status
             });

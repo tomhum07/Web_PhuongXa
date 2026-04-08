@@ -43,13 +43,13 @@ namespace Web_Phuongxa.API.Controllers
                 return false;
             }
 
-            var role = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (!string.Equals(role, "Viewer", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(role, "Người dùng", StringComparison.OrdinalIgnoreCase))
-            {
-                errorResult = Forbid();
-                return false;
-            }
+            //var role = User.FindFirst(ClaimTypes.Role)?.Value;
+            //if (!string.Equals(role, "Viewer", StringComparison.OrdinalIgnoreCase)
+            //    && !string.Equals(role, "Người dùng", StringComparison.OrdinalIgnoreCase))
+            //{
+            //    errorResult = Forbid();
+            //    return false;
+            //}
 
             return true;
         }
