@@ -224,7 +224,7 @@ namespace Web_Phuongxa.API.Controllers
                 ThumbnailUrl = request.ThumbnailUrl,
                 Status = request.Status, // Thường truyền "Draft" hoặc "PendingApproval"
                 ViewCount = 0,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow.AddHours(7)
             };
 
             _context.Articles.Add(newArticle);
@@ -255,7 +255,7 @@ namespace Web_Phuongxa.API.Controllers
             article.Content = request.Content;
             article.ThumbnailUrl = request.ThumbnailUrl;
             article.Status = request.Status;
-            article.UpdatedAt = DateTime.UtcNow;
+            article.UpdatedAt = DateTime.UtcNow.AddHours(7);
 
             _context.Articles.Update(article);
             await _context.SaveChangesAsync();

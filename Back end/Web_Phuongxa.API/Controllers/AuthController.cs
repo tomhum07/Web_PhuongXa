@@ -21,6 +21,8 @@ namespace Web_Phuongxa.API.Controllers
         private readonly PhuongXaDbContext _context;
         private readonly IConfiguration _configuration; // Khai báo thêm IConfiguration
 
+        private static DateTime GetVnNow() => DateTime.UtcNow.AddHours(7);
+
         // 1. Tiêm (Inject) DbContext và IConfiguration vào Controller
         public AuthController(PhuongXaDbContext context, IConfiguration configuration)
         {
@@ -96,7 +98,7 @@ namespace Web_Phuongxa.API.Controllers
                 RecordId = user.UserId,
                 IpAddress = GetClientIpAddress(),
                 Description = BuildLoginDescription(user),
-                CreatedAt = DateTime.UtcNow.AddHours(7)
+                CreatedAt = GetVnNow()
             };
 
             _context.AuditLogs.Add(log);
@@ -239,7 +241,7 @@ namespace Web_Phuongxa.API.Controllers
                 Email = request.Email,
                 RoleId = roleId,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.Users.Add(newUser);
@@ -271,7 +273,7 @@ namespace Web_Phuongxa.API.Controllers
 
             // Lưu OTP và thời gian hết hạn (10 phút) vào DB
             user.ResetOtp = otp;
-            user.ResetOtpExpiry = DateTime.Now.AddMinutes(10);
+            user.ResetOtpExpiry = GetVnNow().AddMinutes(10);
             await _context.SaveChangesAsync();
 
             // Gửi Email bằng SendGrid
@@ -301,7 +303,7 @@ namespace Web_Phuongxa.API.Controllers
                         <p style='font-size: 15px;'>Nếu bạn không yêu cầu đặt lại mật khẩu, xin vui lòng bỏ qua email này. Tuyệt đối <strong>không chia sẻ</strong> mã này cho bất kỳ ai để đảm bảo an toàn cho tài khoản của bạn.</p>
                     </div>
                     <div style='background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 13px; color: #6c757d; border-top: 1px solid #e0e0e0;'>
-                        <p style='margin: 0 0 5px 0;'>© {DateTime.Now.Year} Ban Quản Trị Hệ Thống Phường Cao Lãnh.</p>
+                        <p style='margin: 0 0 5px 0;'>© {GetVnNow().Year} Ban Quản Trị Hệ Thống Phường Cao Lãnh.</p>
                         <p style='margin: 0;'>Đây là email tự động, vui lòng không trả lời thư này.</p>
                     </div>
                 </div>";
@@ -340,7 +342,7 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
-            if (user.ResetOtpExpiry < DateTime.Now)
+            if (user.ResetOtpExpiry < GetVnNow())
             {
                 return BadRequest(new { Message = "Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới." });
             }
@@ -371,7 +373,7 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
-            if (user.ResetOtpExpiry < DateTime.Now)
+            if (user.ResetOtpExpiry < GetVnNow())
             {
                 return BadRequest(new { Message = "Phiên đổi mật khẩu đã hết hạn. Vui lòng yêu cầu lại mã từ đầu." });
             }

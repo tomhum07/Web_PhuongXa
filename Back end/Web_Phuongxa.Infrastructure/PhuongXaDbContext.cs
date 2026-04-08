@@ -73,10 +73,14 @@ public partial class PhuongXaDbContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false)
                 .HasDefaultValue("Submitted");
-            entity.Property(e => e.SubmittedAt)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
-            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+
+            entity.Ignore(e => e.AdminNote);
+            entity.Ignore(e => e.ApplicantId);
+            entity.Ignore(e => e.ApproverId);
+            entity.Ignore(e => e.SubmittedAt);
+            entity.Ignore(e => e.UpdatedAt);
+            entity.Ignore(e => e.Applicant);
+            entity.Ignore(e => e.Approver);
 
             entity.Property<string>("ApplicantName").HasMaxLength(150);
             entity.Property<string>("IdentityNumber").HasMaxLength(50).IsUnicode(false);
@@ -84,15 +88,6 @@ public partial class PhuongXaDbContext : DbContext
             entity.Property<string>("Address").HasMaxLength(500);
             entity.Property<string>("AttachedFileUrl").HasMaxLength(500).IsUnicode(false);
             entity.Property<DateTime?>("CreatedAt").HasColumnType("datetime");
-
-            entity.HasOne(d => d.Applicant).WithMany(p => p.ApplicationApplicants)
-                .HasForeignKey(d => d.ApplicantId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__Applicati__Appli__619B8048");
-
-            entity.HasOne(d => d.Approver).WithMany(p => p.ApplicationApprovers)
-                .HasForeignKey(d => d.ApproverId)
-                .HasConstraintName("FK__Applicati__Appro__6383C8BA");
 
             entity.HasOne(d => d.Handler).WithMany(p => p.ApplicationHandlers)
                 .HasForeignKey(d => d.HandlerId)
@@ -357,6 +352,9 @@ public partial class PhuongXaDbContext : DbContext
             entity.Property(e => e.Username)
                 .HasMaxLength(50)
                 .IsUnicode(false);
+
+            entity.Ignore(e => e.ApplicationApplicants);
+            entity.Ignore(e => e.ApplicationApprovers);
 
             entity.HasOne(d => d.Role).WithMany(p => p.Users)
                 .HasForeignKey(d => d.RoleId)

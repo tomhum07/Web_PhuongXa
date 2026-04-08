@@ -15,6 +15,8 @@ namespace Web_Phuongxa.API.Controllers
     {
         private readonly PhuongXaDbContext _context;
 
+        private static DateTime GetVnNow() => DateTime.UtcNow.AddHours(7);
+
         public CommentController(PhuongXaDbContext context)
         {
             _context = context;
@@ -46,7 +48,7 @@ namespace Web_Phuongxa.API.Controllers
                 UserId = request.UserId,
                 Content = request.Content.Trim(),
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.Comments.Add(comment);
@@ -91,7 +93,7 @@ namespace Web_Phuongxa.API.Controllers
 
             comment.IsActive = false;
             comment.HiddenById = request.HiddenById;
-            comment.UpdatedAt = DateTime.UtcNow;
+            comment.UpdatedAt = GetVnNow();
 
             await _context.SaveChangesAsync();
 
@@ -144,7 +146,7 @@ namespace Web_Phuongxa.API.Controllers
 
             comment.IsActive = true;
             comment.HiddenById = null;
-            comment.UpdatedAt = DateTime.UtcNow;
+            comment.UpdatedAt = GetVnNow();
 
             await _context.SaveChangesAsync();
 

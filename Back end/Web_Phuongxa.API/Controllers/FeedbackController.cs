@@ -15,6 +15,8 @@ namespace Web_Phuongxa.API.Controllers
     {
         private readonly PhuongXaDbContext _context;
 
+        private static DateTime GetVnNow() => DateTime.UtcNow.AddHours(7);
+
         public FeedbackController(PhuongXaDbContext context)
         {
             _context = context;
@@ -42,7 +44,7 @@ namespace Web_Phuongxa.API.Controllers
                 Email = request.Email,
                 Content = finalContent,
                 Status = "Chưa đọc",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.Feedbacks.Add(newFeedback);

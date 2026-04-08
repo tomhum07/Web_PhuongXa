@@ -23,6 +23,8 @@ namespace Web_Phuongxa.API.Controllers
         private readonly PhuongXaDbContext _context;
         private readonly IFileStorageService _fileStorageService;
 
+        private static DateTime GetVnNow() => DateTime.UtcNow.AddHours(7);
+
         public AdminApplicationsController(PhuongXaDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
@@ -353,7 +355,7 @@ SELECT @@ROWCOUNT;";
                 Description = request.Description?.Trim(),
                 CategoryCode = categoryCode,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.ServiceCategories.Add(category);
@@ -530,7 +532,7 @@ SELECT @@ROWCOUNT;";
                 ProcedureFileUrl = request.ProcedureFileUrl?.Trim(),
                 TemplateFileUrl = request.TemplateFileUrl?.Trim(),
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.Services.Add(service);
@@ -604,7 +606,7 @@ SELECT @@ROWCOUNT;";
                 ProcedureFileUrl = procedureFileUrl,
                 TemplateFileUrl = templateFileUrl,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = GetVnNow()
             };
 
             _context.Services.Add(service);

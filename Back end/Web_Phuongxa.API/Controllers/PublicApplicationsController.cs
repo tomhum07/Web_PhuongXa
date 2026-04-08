@@ -18,6 +18,8 @@ namespace Web_Phuongxa.API.Controllers
         private readonly PhuongXaDbContext _context;
         private readonly IFileStorageService _fileStorageService;
 
+        private static DateTime GetVnNow() => DateTime.UtcNow.AddHours(7);
+
         public PublicApplicationsController(PhuongXaDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
@@ -39,7 +41,7 @@ namespace Web_Phuongxa.API.Controllers
 
         private async Task<string> GenerateNextApplicationCodeAsync()
         {
-            var year = DateTime.UtcNow.Year;
+            var year = GetVnNow().Year;
             var prefix = BuildApplicationCodePrefix(year);
 
             var applicationCodes = await _context.Applications
@@ -265,16 +267,16 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Vui lòng đính kèm file hồ sơ." });
             }
 
-             var service = await _context.Services
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId && s.IsActive == true);
+            var service = await _context.Services
+               .AsNoTracking()
+               .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId && s.IsActive == true);
 
             if (service == null)
             {
                 return BadRequest(new { Message = "Thủ tục không tồn tại hoặc đang bị ẩn." });
             }
 
-            var attachedFileUrl = await _fileStorageService.UploadImageAsync(request.AttachedFile, $"applications/{DateTime.UtcNow:yyyy}");
+            var attachedFileUrl = await _fileStorageService.UploadImageAsync(request.AttachedFile, $"applications/{GetVnNow():yyyy}");
             if (string.IsNullOrWhiteSpace(attachedFileUrl))
             {
                 return StatusCode(500, new { Message = "Không thể upload file hồ sơ lên hệ thống lưu trữ." });
@@ -282,83 +284,35 @@ namespace Web_Phuongxa.API.Controllers
 
             var applicationCode = await GenerateNextApplicationCodeAsync();
             var status = "Submitted";
-            var createdAt = DateTime.UtcNow;
+            var createdAt = GetVnNow();
 
-            var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != System.Data.ConnectionState.Open;
-
-            try
+            var application = new Web_Phuongxa.Domain.Entities.Application
             {
-                if (shouldClose)
-                {
-                    await connection.OpenAsync();
-                }
+                ServiceId = request.ServiceId,
+                HandlerId = null,
+                ApplicationCode = applicationCode,
+                Status = status
+            };
 
-                await using var command = connection.CreateCommand();
-                command.CommandText = @"INSERT INTO [Applications]
-(
-    [ServiceId],
-    [ApplicationCode],
-    [ApplicantName],
-    [IdentityNumber],
-    [DateOfBirth],
-    [Address],
-    [AttachedFileUrl],
-    [Status],
-    [HandlerId],
-    [CreatedAt]
-)
-OUTPUT INSERTED.[ApplicationId]
-VALUES
-(
-    @ServiceId,
-    @ApplicationCode,
-    @ApplicantName,
-    @IdentityNumber,
-    @DateOfBirth,
-    @Address,
-    @AttachedFileUrl,
-    @Status,
-    NULL,
-    @CreatedAt
-);";
+            _context.Applications.Add(application);
 
-                void AddParameter(string name, object? value)
-                {
-                    var parameter = command.CreateParameter();
-                    parameter.ParameterName = name;
-                    parameter.Value = value ?? DBNull.Value;
-                    command.Parameters.Add(parameter);
-                }
+            var entry = _context.Entry(application);
+            entry.Property("ApplicantName").CurrentValue = request.ApplicantName.Trim();
+            entry.Property("IdentityNumber").CurrentValue = request.IdentityNumber.Trim();
+            entry.Property("DateOfBirth").CurrentValue = request.DateOfBirth;
+            entry.Property("Address").CurrentValue = request.Address.Trim();
+            entry.Property("AttachedFileUrl").CurrentValue = attachedFileUrl;
+            entry.Property("CreatedAt").CurrentValue = createdAt;
 
-                AddParameter("@ServiceId", request.ServiceId);
-                AddParameter("@ApplicationCode", applicationCode);
-                AddParameter("@ApplicantName", request.ApplicantName.Trim());
-                AddParameter("@IdentityNumber", request.IdentityNumber.Trim());
-                AddParameter("@DateOfBirth", request.DateOfBirth);
-                AddParameter("@Address", request.Address.Trim());
-                AddParameter("@AttachedFileUrl", attachedFileUrl);
-                AddParameter("@Status", status);
-                AddParameter("@CreatedAt", createdAt);
+            await _context.SaveChangesAsync();
 
-                var insertedId = await command.ExecuteScalarAsync();
-                var applicationId = Convert.ToInt32(insertedId);
-
-                return Ok(new
-                {
-                    Message = "Nộp hồ sơ thành công!",
-                    ApplicationId = applicationId,
-                    ApplicationCode = applicationCode,
-                    AttachedFileUrl = attachedFileUrl
-                });
-            }
-            finally
+            return Ok(new
             {
-                if (shouldClose)
-                {
-                    await connection.CloseAsync();
-                }
-            }
+                Message = "Nộp hồ sơ thành công!",
+                ApplicationId = application.ApplicationId,
+                ApplicationCode = applicationCode,
+                AttachedFileUrl = attachedFileUrl
+            });
         }
     }
 }

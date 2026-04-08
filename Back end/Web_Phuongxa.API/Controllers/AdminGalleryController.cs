@@ -218,7 +218,7 @@ namespace Web_Phuongxa.API.Controllers
                 ImageUrl = blobUrl,
                 UploaderId = request.UploaderId,
                 IsVisible = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow.AddHours(7)
             };
 
             _context.GalleryImages.Add(galleryImage);
