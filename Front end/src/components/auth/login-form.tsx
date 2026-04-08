@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,187 +23,101 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  getApiBaseUrl,
+  getRedirectPathByRole,
+  setAuthSession,
+} from "../../lib/auth";
 
-type LoginResponse = {
-  message?: string;
-  token?: string;
-  accessToken?: string;
-  role?: string;
-  roles?: string[];
-  user?: {
-    role?: string;
-    roles?: string[];
-  };
-};
+import { toast } from "sonner";
 
-type AppRole = "admin" | "editor" | "viewer";
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Vui lòng nhập email.")
+    .email("Email không đúng định dạng."),
+  password: z.string().min(1, "Vui lòng nhập mật khẩu."),
+});
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) {
-      return null;
-    }
-
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    return JSON.parse(atob(padded)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeRole(rawRole?: string): AppRole {
-  const normalized = rawRole?.trim().toLowerCase();
-
-  if (normalized === "admin") {
-    return "admin";
-  }
-
-  if (normalized === "editor") {
-    return "editor";
-  }
-
-  return "viewer";
-}
-
-function getRoleFromPayload(payload: LoginResponse | null): string | undefined {
-  return (
-    payload?.role ?? payload?.roles?.[0] ?? payload?.user?.role ?? payload?.user?.roles?.[0]
-  );
-}
-
-function getRoleFromToken(token?: string): string | undefined {
-  if (!token) {
-    return undefined;
-  }
-
-  const decoded = decodeJwtPayload(token);
-  if (!decoded) {
-    return undefined;
-  }
-
-  return (
-    (decoded.role as string | undefined) ??
-    (decoded["roles"] as string[] | undefined)?.[0] ??
-    (decoded["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] as
-      | string
-      | undefined)
-  );
-}
-
-function getRouteByRole(role: AppRole): string {
-  if (role === "admin") {
-    return "/dashboard";
-  }
-  if (role === "editor") {
-    return "/quan-tri";
-  }
-
-  return "/";
-}
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
+  const searchParams = useSearchParams();
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleEnterKey = (
-    event: KeyboardEvent<HTMLInputElement>,
-    field: "email" | "password",
-  ) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-
-    if (field === "email") {
-      event.preventDefault();
-      passwordInputRef.current?.focus();
-      return;
-    }
-
-    event.preventDefault();
-    formRef.current?.requestSubmit();
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitStatus(null);
-
-    if (!formData.email.trim() || !formData.password.trim()) {
-      setSubmitStatus({
-        type: "error",
-        message: "Vui lòng nhập đầy đủ email và mật khẩu.",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
+  const onSubmit = async (values: LoginFormValues) => {
+    setErrorMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/Auth/login`, {
+      const response = await fetch(`${getApiBaseUrl()}/Auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         body: JSON.stringify({
-          email: formData.email.trim(),
-          password: formData.password,
+          email: values.email.trim(),
+          password: values.password,
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as
-        | LoginResponse
-        | null;
+      const payload = await response.json().catch(() => null);
+      const token = payload?.token ?? payload?.Token;
+      const userInfo = payload?.userInfo ?? payload?.UserInfo;
 
-      if (!response.ok) {
-        throw new Error(
-          payload?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
-        );
+      if (!response.ok || !token) {
+        const errorMsg =
+          payload?.message ??
+          payload?.Message ??
+          "Đăng nhập thất bại. Vui lòng thử lại.";
+        toast.error(errorMsg, { position: "top-center" });
+        return;
       }
-
-      const token = payload?.accessToken ?? payload?.token;
-      if (token) {
-        localStorage.setItem("auth_token", token);
-      }
-
-      const role = normalizeRole(getRoleFromPayload(payload) ?? getRoleFromToken(token));
-      localStorage.setItem("auth_role", role);
-
-      setSubmitStatus({
-        type: "success",
-        message: payload?.message || "Đăng nhập thành công.",
+      const successMsg =
+        payload?.message ?? payload?.Message ?? "Đăng nhập thành công!";
+      toast.success(successMsg, { position: "top-center" });
+      const role = userInfo?.role ?? userInfo?.Role ?? "";
+      setAuthSession({
+        token,
+        role,
+        userId: userInfo?.userId ?? userInfo?.UserId,
+        fullName: userInfo?.fullName ?? userInfo?.FullName,
+        email: userInfo?.email ?? userInfo?.Email ?? values.email.trim(),
+        avatarUrl:
+          userInfo?.avatarUrl ??
+          userInfo?.AvatarUrl ??
+          userInfo?.profileImage ??
+          userInfo?.ProfileImage,
       });
 
-      router.push(getRouteByRole(role));
+      const callbackUrl = searchParams.get("callbackUrl");
+      const redirectPath =
+        callbackUrl && callbackUrl.startsWith("/")
+          ? callbackUrl
+          : getRedirectPathByRole(role);
+      router.replace(redirectPath);
       router.refresh();
-    } catch (error) {
-      console.error("Cannot login", error);
-      setSubmitStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không thể đăng nhập lúc này. Vui lòng thử lại sau.",
-      });
-    } finally {
-      setIsSubmitting(false);
+    } catch {
+      setErrorMessage("Không kết nối được tới máy chủ. Vui lòng thử lại sau.");
     }
   };
 
@@ -220,26 +136,19 @@ export function LoginForm({
           </CardAction>
         </CardHeader>
         <CardContent>
-          <form ref={formRef} onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Nhập email"
+                  placeholder="mail@example.com"
                   autoComplete="email"
-                  value={formData.email}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      email: event.target.value,
-                    }))
-                  }
-                  onKeyDown={(event) => handleEnterKey(event, "email")}
+                  {...register("email")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.email]} />
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -254,39 +163,31 @@ export function LoginForm({
                   </Link>
                 </div>
                 <Input
-                  ref={passwordInputRef}
                   id="password"
                   type="password"
                   autoComplete="current-password"
-                  value={formData.password}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
-                  onKeyDown={(event) => handleEnterKey(event, "password")}
+                  {...register("password")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.password]} />
               </Field>
               <Field>
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {errorMessage ? (
+                  <p className="mb-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={!isValid || isSubmitting}
+                >
                   {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
                 </Button>
                 <Button variant="outline" type="button" disabled={isSubmitting}>
                   Đăng nhập với Google
                 </Button>
-
-                {submitStatus && (
-                  <FieldError
-                    className={
-                      submitStatus.type === "success" ? "text-green-600" : undefined
-                    }
-                  >
-                    {submitStatus.message}
-                  </FieldError>
-                )}
 
                 <FieldDescription className="text-center">
                   Chưa có tài khoản?

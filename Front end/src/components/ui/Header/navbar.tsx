@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
-
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -16,16 +14,28 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 import { Button } from "@/components/ui/button";
+
+import {
+  clearAuthSession,
+  getCurrentUserDisplay,
+  type CurrentUserDisplay,
+  getRedirectPathByRole,
+  getAuthSnapshot,
+  hasDashboardAccess,
+  hydrateAuthCookiesFromStorage,
+  isViewerRole,
+} from "@/lib/auth";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const components: {
   id: number;
@@ -65,20 +75,61 @@ const components: {
   },
 ];
 
-type Service = {
-  serviceId: number;
-  name: string;
-  description: string;
-  procedureDetails?: string;
-  isActive: boolean;
-};
+const services = [
+  {
+    id: 1,
+    title: "Thủ tục hành chính",
+    url: "/thu-tuc-hanh-chinh",
+    description:
+      "Cung cấp thông tin và hướng dẫn về các thủ tục hành chính tại Phường Cao Lãnh.",
+  },
+  {
+    id: 2,
+    title: "Nộp hồ sơ",
+    url: "/nop-ho-so",
+    description:
+      "Hỗ trợ nộp hồ sơ trực tuyến cho các dịch vụ công tại Phường Cao Lãnh.",
+  },
+  {
+    id: 3,
+    title: "Tra cứu hồ sơ",
+    url: "/tra-cuu-ho-so",
+    description:
+      "Cho phép người dân tra cứu tình trạng hồ sơ đã nộp tại Phường Cao Lãnh.",
+  },
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) {
+    return "ND";
+  }
+
+  const first = parts[0]?.charAt(0) ?? "";
+  const last =
+    parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? "") : "";
+  const initials = `${first}${last}`.toUpperCase();
+
+  return initials || "ND";
+}
 
 export function Navbar() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [services, setServices] = useState<Service[]>([]);
-  const hasFetchedServices = useRef(false);
+  // const [services, setServices] = useState<Service[]>([]);
+  const [authRole, setAuthRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUserDisplay | null>(
+    null,
+  );
+  // const hasFetchedServices = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  const isAuthenticated = authRole !== null;
+  const canAccessAdmin =
+    isAuthenticated &&
+    hasDashboardAccess(authRole ?? "") &&
+    !isViewerRole(authRole ?? "");
+  const dashboardHref = getRedirectPathByRole(authRole ?? "");
 
   const isRouteActive = (href: string) => {
     if (href === "/") {
@@ -88,86 +139,41 @@ export function Navbar() {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
-
-  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+  const handleLogout = () => {
+    clearAuthSession();
+    setAuthRole(null);
+    router.push("/");
+    router.refresh();
+  };
 
   useEffect(() => {
-    if (hasFetchedServices.current) {
-      return;
-    }
+    const syncAuthState = () => {
+      hydrateAuthCookiesFromStorage();
+      const { token, role } = getAuthSnapshot();
 
-    hasFetchedServices.current = true;
-    let isMounted = true;
-
-    const cacheKey = "navbar_services_v1";
-    const cacheTtlMs = 5 * 60 * 1000;
-
-    try {
-      const cachedRaw = sessionStorage.getItem(cacheKey);
-      if (cachedRaw) {
-        const cached: { timestamp: number; data: Service[] } =
-          JSON.parse(cachedRaw);
-        const isFresh = Date.now() - cached.timestamp < cacheTtlMs;
-
-        if (isFresh && Array.isArray(cached.data) && cached.data.length > 0) {
-          setServices(cached.data);
-        }
+      if (!token) {
+        setAuthRole(null);
+        setCurrentUser(null);
+        return;
       }
-    } catch {
-      // Ignore cache parsing errors and continue with network request.
-    }
 
-    const loadServices = async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-      try {
-        const response = await fetch(`${apiBaseUrl}/api/Services`, {
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load services: ${response.status}`);
-        }
-
-        const data: Service[] = await response.json();
-        const activeServices = data.filter((service) => service.isActive);
-
-        if (isMounted) {
-          setServices(activeServices);
-        }
-
-        try {
-          sessionStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-              timestamp: Date.now(),
-              data: activeServices,
-            }),
-          );
-        } catch {
-          // Ignore storage quota errors.
-        }
-      } catch (error) {
-        console.error("Cannot fetch services", error);
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      setAuthRole(role ?? "");
+      setCurrentUser(getCurrentUserDisplay());
     };
 
-    loadServices();
+    syncAuthState();
+    window.addEventListener("storage", syncAuthState);
+    window.addEventListener("focus", syncAuthState);
 
     return () => {
-      isMounted = false;
+      window.removeEventListener("storage", syncAuthState);
+      window.removeEventListener("focus", syncAuthState);
     };
-  }, [apiBaseUrl]);
+  }, [pathname]);
 
   return (
     <div className="relative">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-2 sm:px-4">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-2 sm:px-4">
         <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Image
             src="/Logo_TPCaoLanh.svg"
@@ -176,7 +182,7 @@ export function Navbar() {
             height={45}
             className="h-9 w-9 rounded-full object-cover sm:h-11 sm:w-11"
           />
-          <span className="truncate text-base font-bold sm:text-xl">
+          <span className="truncate text-base font-bold sm:text-xl ">
             Phường Cao Lãnh
           </span>
         </Link>
@@ -199,52 +205,149 @@ export function Navbar() {
             ))}
 
             <NavigationMenuItem>
-              <NavigationMenuTrigger className="text-lg hover:text-pink-600 hover:bg-pink-100 focus:bg-pink-100 focus:text-pink-600">
+<<<<<<< HEAD
+              <NavigationMenuTrigger 
+                className={`text-lg hover:text-pink-600 hover:bg-pink-100 focus:bg-pink-100 focus:text-pink-600 ${pathname?.startsWith('/dich-vu') ? 'bg-pink-100 text-pink-600' : ''}`}
+                onClick={() => router.push('/dich-vu')}
+              >
                 Dịch vụ
               </NavigationMenuTrigger>
               <NavigationMenuContent className="z-50 md:left-auto md:right-0">
-                <ul className="grid w-1000 gap-2 md:w-96 md:grid-cols-2 lg:w-96">
+                <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                  <li className="row-span-3">
+                    <NavigationMenuLink asChild>
+                      <Link
+                        className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md hover:bg-slate-100 transition-colors"
+                        href="/dich-vu"
+                      >
+                        <div className="mb-2 mt-4 text-lg font-medium text-[#c22143]">
+                          Dịch vụ hành chính
+=======
+              <NavigationMenuTrigger className="rounded-full px-4 text-base font-medium transition-all duration-200 hover:border-border/70 hover:bg-secondary/70 focus:bg-secondary/70">
+                <Link href="/dich-vu">Dịch vụ</Link>
+              </NavigationMenuTrigger>
+              <NavigationMenuContent className="z-50 md:left-auto md:right-0">
+                <ul className="grid w-1000 gap-2 md:w-96 md:grid-cols-1 lg:w-96">
                   {services.map((service) => (
                     <NavigationMenuLink
-                      key={service.serviceId}
+                      key={service.id}
                       className="hover:text-pink-600 hover:bg-pink-100"
                       asChild
                     >
-                      <Link
-                        href={`/dich-vu/${service.serviceId}?name=${encodeURIComponent(service.name)}`}
-                      >
+                      <Link href={`/dich-vu/${service.url}`}>
                         <div className="flex flex-col gap-1 text-base">
                           <div className="leading-none font-medium">
-                            {service.name}
+                            {service.title}
                           </div>
                           <div className="line-clamp-2 text-muted-foreground">
                             {service.description}
                           </div>
+>>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
                         </div>
+                        <p className="text-sm leading-tight text-muted-foreground">
+                          Tra cứu thủ tục, nộp hồ sơ trực tuyến và tải biểu mẫu hành chính nhanh chóng, tiện lợi.
+                        </p>
                       </Link>
                     </NavigationMenuLink>
-                  ))}
+                  </li>
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Link
+                        href="/dich-vu/thu-tuc-hanh-chinh"
+                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
+                      >
+                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Thủ tục hành chính</div>
+                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                          Tra cứu các thủ tục hành chính theo từng lĩnh vực.
+                        </p>
+                      </Link>
+                    </NavigationMenuLink>
+                  </li>
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Link
+                        href="/dich-vu/nop-ho-so"
+                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
+                      >
+                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Nộp hồ sơ trực tuyến</div>
+                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                          Nộp và theo dõi tiến độ xử lý hồ sơ hành chính.
+                        </p>
+                      </Link>
+                    </NavigationMenuLink>
+                  </li>
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Link
+                        href="/dich-vu/tai-bieu-mau"
+                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
+                      >
+                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Tải biểu mẫu</div>
+                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                          Tải về các biểu mẫu, tờ khai hành chính chuẩn.
+                        </p>
+                      </Link>
+                    </NavigationMenuLink>
+                  </li>
                 </ul>
               </NavigationMenuContent>
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
 
-        <Link href="/dang-nhap" className="hidden md:block">
-          <Button size="lg" className="text-lg" variant="outline">
-            Đăng nhập
-          </Button>
-        </Link>
-
-        <button
-          type="button"
-          aria-label={isMobileMenuOpen ? "Đóng menu" : "Mở menu"}
-          className="inline-flex items-center justify-center rounded-md border p-2 md:hidden"
-          onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+        <div className="hidden items-center gap-2 md:flex">
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="rounded-full">
+                  <Avatar>
+                    <AvatarImage
+                      src={currentUser?.avatarUrl ?? undefined}
+                      alt={currentUser?.fullName ?? "Tài khoản"}
+                    />
+                    <AvatarFallback>
+                      {getInitials(currentUser?.fullName ?? "")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left leading-tight">
+                    <span className="truncate font-medium">
+                      {currentUser?.fullName ?? "Người dùng"}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {currentUser?.email ?? "Chưa cập nhật email"}
+                    </span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-32">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem>
+                    {canAccessAdmin ? (
+                      <Link href={dashboardHref}>Quản trị</Link>
+                    ) : null}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={handleLogout}
+                  >
+                    Đăng xuất
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link href="/dang-nhap">
+              <Button size="lg" className="text-lg" variant="outline">
+                Đăng nhập
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
+<<<<<<< HEAD
 
       {isMobileMenuOpen ? (
         <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border bg-white p-4 shadow-lg md:hidden">
@@ -261,46 +364,53 @@ export function Navbar() {
                 {item.title}
               </Link>
             ))}
-            <div className="px-3">
-              <Select
-                onValueChange={(value) => {
-                  const selectedService = services.find(
-                    (service) => service.serviceId.toString() === value,
-                  );
-                  const serviceQuery = selectedService
-                    ? `?name=${encodeURIComponent(selectedService.name)}`
-                    : "";
-
-                  router.push(`/dich-vu/${value}${serviceQuery}`);
-                  closeMobileMenu();
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Dịch vụ" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectGroup>
-                    {services.map((service) => (
-                      <SelectItem
-                        key={service.serviceId}
-                        value={service.serviceId.toString()}
-                      >
-                        {service.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+            <div className="px-3 py-2 text-base font-medium">
+              <Link href="/dich-vu" onClick={closeMobileMenu} className={`block mb-2 font-semibold ${pathname?.startsWith('/dich-vu') ? 'text-pink-600' : ''}`}>
+                Dịch vụ hành chính
+              </Link>
+              <div className="flex flex-col gap-2 pl-4 border-l-2 border-slate-100">
+                <Link href="/dich-vu/thu-tuc-hanh-chinh" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Thủ tục hành chính</Link>
+                <Link href="/dich-vu/nop-ho-so" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Nộp hồ sơ trực tuyến</Link>
+                <Link href="/dich-vu/tai-bieu-mau" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Tải biểu mẫu</Link>
+              </div>
             </div>
 
-            <Link href="/dang-nhap" onClick={closeMobileMenu} className="mt-3">
-              <Button className="w-full" variant="outline">
-                Đăng nhập
+            {canAccessAdmin ? (
+              <Link
+                href={dashboardHref}
+                onClick={closeMobileMenu}
+                className="mt-3"
+              >
+                <Button className="w-full" variant="secondary">
+                  Quản trị
+                </Button>
+              </Link>
+            ) : null}
+
+            {isAuthenticated ? (
+              <Button
+                className="mt-3 w-full"
+                variant="outline"
+                onClick={handleLogout}
+              >
+                Đăng xuất
               </Button>
-            </Link>
+            ) : (
+              <Link
+                href="/dang-nhap"
+                onClick={closeMobileMenu}
+                className="mt-3"
+              >
+                <Button className="w-full" variant="outline">
+                  Đăng nhập
+                </Button>
+              </Link>
+            )}
           </nav>
         </div>
       ) : null}
+=======
+>>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
     </div>
   );
 }

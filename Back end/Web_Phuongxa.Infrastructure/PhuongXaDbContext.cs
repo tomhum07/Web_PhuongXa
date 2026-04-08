@@ -78,6 +78,13 @@ public partial class PhuongXaDbContext : DbContext
                 .HasColumnType("datetime");
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
 
+            entity.Property<string>("ApplicantName").HasMaxLength(150);
+            entity.Property<string>("IdentityNumber").HasMaxLength(50).IsUnicode(false);
+            entity.Property<DateTime?>("DateOfBirth").HasColumnType("datetime");
+            entity.Property<string>("Address").HasMaxLength(500);
+            entity.Property<string>("AttachedFileUrl").HasMaxLength(500).IsUnicode(false);
+            entity.Property<DateTime?>("CreatedAt").HasColumnType("datetime");
+
             entity.HasOne(d => d.Applicant).WithMany(p => p.ApplicationApplicants)
                 .HasForeignKey(d => d.ApplicantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)

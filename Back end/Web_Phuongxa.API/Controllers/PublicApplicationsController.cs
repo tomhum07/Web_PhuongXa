@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
 using System;
-using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Web_Phuongxa.Application.DTOs;
@@ -43,39 +41,17 @@ namespace Web_Phuongxa.API.Controllers
         {
             var year = DateTime.UtcNow.Year;
             var prefix = BuildApplicationCodePrefix(year);
-            var maxSequence = 0;
 
-            var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != ConnectionState.Open;
+            var applicationCodes = await _context.Applications
+                .AsNoTracking()
+                .Where(a => a.ApplicationCode.StartsWith(prefix))
+                .Select(a => a.ApplicationCode)
+                .ToListAsync();
 
-            try
-            {
-                if (shouldClose)
-                {
-                    await connection.OpenAsync();
-                }
-
-                await using var command = connection.CreateCommand();
-                command.CommandText = "SELECT [ApplicationCode] FROM [Applications] WHERE [ApplicationCode] LIKE @prefix + '%'";
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "@prefix";
-                parameter.Value = prefix;
-                command.Parameters.Add(parameter);
-
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var applicationCode = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
-                    maxSequence = Math.Max(maxSequence, TryParseApplicationSequence(applicationCode, prefix));
-                }
-            }
-            finally
-            {
-                if (shouldClose)
-                {
-                    await connection.CloseAsync();
-                }
-            }
+            var maxSequence = applicationCodes
+                .Select(code => TryParseApplicationSequence(code, prefix))
+                .DefaultIfEmpty(0)
+                .Max();
 
             return $"{prefix}{(maxSequence + 1):D4}";
         }
@@ -89,89 +65,61 @@ namespace Web_Phuongxa.API.Controllers
             }
 
             var normalizedCode = applicationCode.Trim();
-            var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != ConnectionState.Open;
 
-            try
+            var application = await _context.Applications
+                .AsNoTracking()
+                .Include(a => a.Service)
+                    .ThenInclude(s => s.ServiceCategory)
+                .Where(a => a.ApplicationCode == normalizedCode)
+                .Select(a => new
+                {
+                    a.ApplicationId,
+                    a.ServiceId,
+                    a.ApplicationCode,
+                    ApplicantName = EF.Property<string>(a, "ApplicantName"),
+                    IdentityNumber = EF.Property<string>(a, "IdentityNumber"),
+                    DateOfBirth = EF.Property<DateTime?>(a, "DateOfBirth"),
+                    Address = EF.Property<string>(a, "Address"),
+                    AttachedFileUrl = EF.Property<string>(a, "AttachedFileUrl"),
+                    a.Status,
+                    a.HandlerId,
+                    CreatedAt = EF.Property<DateTime?>(a, "CreatedAt"),
+                    ServiceName = a.Service != null ? a.Service.Name : null,
+                    CategoryName = a.Service != null && a.Service.ServiceCategory != null ? a.Service.ServiceCategory.Name : null
+                })
+                .FirstOrDefaultAsync();
+
+            if (application == null)
             {
-                if (shouldClose)
-                {
-                    await connection.OpenAsync();
-                }
-
-                await using var command = connection.CreateCommand();
-                command.CommandText = @"
-SELECT TOP 1
-    a.[ApplicationId],
-    a.[ServiceId],
-    a.[ApplicationCode],
-    a.[ApplicantName],
-    a.[IdentityNumber],
-    a.[DateOfBirth],
-    a.[Address],
-    a.[AttachedFileUrl],
-    a.[Status],
-    a.[HandlerId],
-    a.[CreatedAt],
-    s.[Name] AS [ServiceName],
-    sc.[Name] AS [CategoryName]
-FROM [Applications] a
-LEFT JOIN [Services] s ON a.[ServiceId] = s.[ServiceId]
-LEFT JOIN [ServiceCategories] sc ON s.[ServiceCategoryId] = sc.[ServiceCategoryId]
-WHERE a.[ApplicationCode] = @ApplicationCode";
-
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "@ApplicationCode";
-                parameter.Value = normalizedCode;
-                command.Parameters.Add(parameter);
-
-                await using var reader = await command.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
-                {
-                    return NotFound(new { Message = "Không tìm thấy hồ sơ theo mã ApplicationCode." });
-                }
-
-                object? GetValue(string columnName)
-                {
-                    var ordinal = reader.GetOrdinal(columnName);
-                    return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal);
-                }
-
-                var status = GetValue("Status")?.ToString();
-                var statusText = status?.ToLowerInvariant() switch
-                {
-                    "submitted" => "Đã nộp",
-                    "processing" => "Đang xử lý",
-                    "approved" => "Đã duyệt",
-                    "rejected" => "Từ chối",
-                    _ => status ?? string.Empty
-                };
-
-                return Ok(new
-                {
-                    ApplicationId = GetValue("ApplicationId"),
-                    ServiceId = GetValue("ServiceId"),
-                    ApplicationCode = GetValue("ApplicationCode"),
-                    ApplicantName = GetValue("ApplicantName"),
-                    IdentityNumber = GetValue("IdentityNumber"),
-                    DateOfBirth = GetValue("DateOfBirth"),
-                    Address = GetValue("Address"),
-                    AttachedFileUrl = GetValue("AttachedFileUrl"),
-                    Status = status,
-                    StatusText = statusText,
-                    HandlerId = GetValue("HandlerId"),
-                    CreatedAt = GetValue("CreatedAt"),
-                    ServiceName = GetValue("ServiceName"),
-                    CategoryName = GetValue("CategoryName")
-                });
+                return NotFound(new { Message = "Không tìm thấy hồ sơ theo mã ApplicationCode." });
             }
-            finally
+
+            var statusText = application.Status?.ToLowerInvariant() switch
             {
-                if (shouldClose)
-                {
-                    await connection.CloseAsync();
-                }
-            }
+                "submitted" => "Đã nộp",
+                "processing" => "Đang xử lý",
+                "approved" => "Đã duyệt",
+                "rejected" => "Từ chối",
+                _ => application.Status ?? string.Empty
+            };
+
+            return Ok(new
+            {
+                application.ApplicationId,
+                application.ServiceId,
+                application.ApplicationCode,
+                application.ApplicantName,
+                application.IdentityNumber,
+                application.DateOfBirth,
+                application.Address,
+                application.AttachedFileUrl,
+                Status = application.Status,
+                StatusText = statusText,
+                application.HandlerId,
+                application.CreatedAt,
+                application.ServiceName,
+                application.CategoryName
+            });
         }
 
         [HttpGet("fields")]
@@ -317,7 +265,7 @@ WHERE a.[ApplicationCode] = @ApplicationCode";
                 return BadRequest(new { Message = "Vui lòng đính kèm file hồ sơ." });
             }
 
-            var service = await _context.Services
+             var service = await _context.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId && s.IsActive == true);
 
@@ -337,7 +285,7 @@ WHERE a.[ApplicationCode] = @ApplicationCode";
             var createdAt = DateTime.UtcNow;
 
             var connection = _context.Database.GetDbConnection();
-            var shouldClose = connection.State != ConnectionState.Open;
+            var shouldClose = connection.State != System.Data.ConnectionState.Open;
 
             try
             {

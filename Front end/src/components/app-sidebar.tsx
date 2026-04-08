@@ -41,23 +41,8 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/dashboard",
+      url: "#",
       icon: <LayoutDashboardIcon />,
-    },
-    {
-      title: "Quản lý người dùng",
-      url: "/users",
-      icon: <UsersIcon />,
-    },
-    {
-      title: "Quản lý nội dung",
-      url: "/content",
-      icon: <FileTextIcon />,
-    },
-    {
-      title: "Quản lý dịch vụ",
-      url: "/services",
-      icon: <Settings2Icon />,
     },
     {
       title: "Lifecycle",
@@ -193,7 +178,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   );

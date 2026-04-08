@@ -22,13 +22,13 @@ export default async function Page({
   const { id } = await params;
   const query = searchParams ? await searchParams : undefined;
   const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
+    process.env.NEXT_PUBLIC_API_URL || "https://phuongxa-api-backend-fuc4gzgyauanbhc7.southeastasia-01.azurewebsites.net/api";
 
   let serviceName = query?.name;
 
   if (!serviceName) {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/Services`, {
+      const response = await fetch(`${apiBaseUrl}/Services`, {
         next: { revalidate: 300 },
       });
 

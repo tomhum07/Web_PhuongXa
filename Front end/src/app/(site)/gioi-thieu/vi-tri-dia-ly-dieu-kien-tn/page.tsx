@@ -33,7 +33,9 @@ export default function GioiThieu() {
   return (
     <>
       <div className="text-center my-6">
-        <h1 className="text-3xl font-bold">Giới thiệu</h1>
+        <h1 className="text-3xl font-bold">
+          Vị trí địa lý & điều kiện tự nhiên
+        </h1>
       </div>
       <div className="mx-auto max-w-5xl px-4">
         <GioiThieuBreadcrumb

@@ -28,137 +28,103 @@ import {
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getApiBaseUrl } from "@/lib/auth";
+import { toast } from "sonner";
 
 type OTPFormProps = {
   email?: string;
 };
 
-type OTPResponse = {
-  message?: string;
-};
-
 export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
   const router = useRouter();
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
-  const verifyOtpEndpoint =
-    process.env.NEXT_PUBLIC_API_VERIFY_OTP_ENDPOINT ?? "/api/Auth/verify-otp";
-  const forgotPasswordEndpoint =
-    process.env.NEXT_PUBLIC_API_FORGOT_PASSWORD_ENDPOINT ??
-    "/api/Auth/forgot-password";
-
   const [otp, setOtp] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [status, setStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
+  const hasOtpError = Boolean(error);
 
   const handleVerifyOTP = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!email?.trim()) {
-      setStatus({
-        type: "error",
-        message: "Không tìm thấy email. Vui lòng quay lại bước trước.",
-      });
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError("Không tìm thấy email để xác thực OTP.");
       return;
     }
 
     if (otp.length !== 6) {
-      setStatus({
-        type: "error",
-        message: "Vui lòng nhập đầy đủ 6 số OTP.",
-      });
+      setError("Vui lòng nhập đầy đủ 6 số OTP.");
       return;
     }
 
-    setStatus(null);
-    setIsSubmitting(true);
+    setError(null);
 
+    setIsSubmitting(true);
     try {
-      const response = await fetch(`${apiBaseUrl}${verifyOtpEndpoint}`, {
+      const response = await fetch(`${getApiBaseUrl()}/Auth/verify-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         body: JSON.stringify({
-          email: email.trim(),
+          email: normalizedEmail,
           otp,
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as OTPResponse | null;
+      const payload = await response.json().catch(() => null);
+      const message = payload?.message ?? payload?.Message;
 
       if (!response.ok) {
-        throw new Error(payload?.message || "Mã OTP không hợp lệ hoặc đã hết hạn.");
+        setError(message ?? "Mã OTP không hợp lệ.");
+        return;
       }
 
-      setStatus({
-        type: "success",
-        message: payload?.message || "Xác minh OTP thành công.",
-      });
-
+      toast.success(message ?? "Xác thực OTP thành công.");
       router.push(
-        `/tao-mat-khau?email=${encodeURIComponent(email.trim())}&otp=${encodeURIComponent(otp)}`,
+        `/tao-mat-khau?email=${encodeURIComponent(normalizedEmail)}&otp=${encodeURIComponent(otp)}`,
       );
-    } catch (error) {
-      setStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không thể xác minh OTP lúc này. Vui lòng thử lại sau.",
-      });
+    } catch {
+      setError("Không kết nối được tới máy chủ. Vui lòng thử lại sau.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (!email?.trim()) {
-      setStatus({
-        type: "error",
-        message: "Không tìm thấy email để gửi lại OTP.",
-      });
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError("Không tìm thấy email để gửi lại OTP.");
       return;
     }
 
-    setStatus(null);
+    setError(null);
     setIsResending(true);
-
     try {
-      const response = await fetch(`${apiBaseUrl}${forgotPasswordEndpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const response = await fetch(
+        `${getApiBaseUrl()}/Auth/forgot-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ email: normalizedEmail }),
         },
-        body: JSON.stringify({
-          email: email.trim(),
-        }),
-      });
+      );
 
-      const payload = (await response.json().catch(() => null)) as OTPResponse | null;
+      const payload = await response.json().catch(() => null);
+      const message = payload?.message ?? payload?.Message;
 
       if (!response.ok) {
-        throw new Error(payload?.message || "Không thể gửi lại OTP. Vui lòng thử lại.");
+        setError(message ?? "Không thể gửi lại OTP.");
+        return;
       }
 
-      setStatus({
-        type: "success",
-        message: payload?.message || "Đã gửi lại mã OTP tới email của bạn.",
-      });
-    } catch (error) {
-      setStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không thể gửi lại OTP lúc này. Vui lòng thử lại sau.",
-      });
+      toast.success(message ?? "Đã gửi lại OTP.");
+    } catch {
+      setError("Không kết nối được tới máy chủ. Vui lòng thử lại sau.");
     } finally {
       setIsResending(false);
     }
@@ -194,39 +160,57 @@ export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
                 {isResending ? "Đang gửi..." : "Gửi lại mã"}
               </Button>
             </div>
+            <div className="my-2">
+              <InputOTP
+                maxLength={6}
+                id="otp-verification"
+                required
+                containerClassName="justify-center"
+                value={otp}
+                onChange={(value) => {
+                  setOtp(value);
+                  if (error) setError(null);
+                }}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot
+                    index={0}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                  <InputOTPSlot
+                    index={1}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                  <InputOTPSlot
+                    index={2}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                </InputOTPGroup>
+                <InputOTPSeparator className="mx-2" />
+                <InputOTPGroup>
+                  <InputOTPSlot
+                    index={3}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                  <InputOTPSlot
+                    index={4}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                  <InputOTPSlot
+                    index={5}
+                    aria-invalid={hasOtpError}
+                    className="h-12 w-11 text-xl"
+                  />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
 
-            <InputOTP
-              maxLength={6}
-              id="otp-verification"
-              required
-              containerClassName="justify-center"
-              value={otp}
-              onChange={(value: string) => {
-                setOtp(value);
-                if (status?.type === "error") {
-                  setStatus(null);
-                }
-              }}
-              disabled={isSubmitting}
-            >
-              <InputOTPGroup>
-                <InputOTPSlot index={0} className="h-12 w-11 text-xl" />
-                <InputOTPSlot index={1} className="h-12 w-11 text-xl" />
-                <InputOTPSlot index={2} className="h-12 w-11 text-xl" />
-              </InputOTPGroup>
-              <InputOTPSeparator className="mx-2" />
-              <InputOTPGroup>
-                <InputOTPSlot index={3} className="h-12 w-11 text-xl" />
-                <InputOTPSlot index={4} className="h-12 w-11 text-xl" />
-                <InputOTPSlot index={5} className="h-12 w-11 text-xl" />
-              </InputOTPGroup>
-            </InputOTP>
-
-            <FieldError
-              className={status?.type === "success" ? "text-green-600" : undefined}
-            >
-              {status?.message}
-            </FieldError>
+            <FieldError>{error}</FieldError>
 
             <FieldDescription>
               <a href="#">

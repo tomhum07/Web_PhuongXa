@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getApiBaseUrl } from "@/lib/auth";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,46 +30,33 @@ type NewPasswordFormProps = {
   otp?: string;
 };
 
-type ResetPasswordResponse = {
-  message?: string;
-};
-
 export default function NewPasswordForm({
   email = "m@example.com",
-  otp,
+  otp = "",
 }: NewPasswordFormProps) {
   const router = useRouter();
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
-  const resetPasswordEndpoint =
-    process.env.NEXT_PUBLIC_API_RESET_PASSWORD_ENDPOINT ?? "/api/Auth/reset-password";
-
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!email?.trim()) {
-      setError("Không tìm thấy email. Vui lòng quay lại bước khôi phục mật khẩu.");
+    const normalizedEmail = email.trim();
+    const normalizedOtp = otp.trim();
+
+    if (!normalizedEmail || !normalizedOtp) {
+      setError(
+        "Thiếu email hoặc mã OTP. Vui lòng thực hiện lại bước xác thực OTP.",
+      );
       return;
     }
 
-    if (!otp?.trim()) {
-      setError("Không tìm thấy mã OTP. Vui lòng xác minh OTP lại.");
+    if (password.length < 8) {
+      setError("Mật khẩu mới phải có ít nhất 8 ký tự.");
       return;
     }
-// test nên tắt tạm
-    // if (password.length < 8) {
-    //   setError("Mật khẩu mới phải có ít nhất 8 ký tự.");
-    //   return;
-    // }
 
     if (password !== confirmPassword) {
       setError("Mật khẩu nhập lại không khớp.");
@@ -75,47 +64,43 @@ export default function NewPasswordForm({
     }
 
     setError(null);
-    setSubmitStatus(null);
+
     setIsSubmitting(true);
-
     try {
-      const response = await fetch(`${apiBaseUrl}${resetPasswordEndpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const response = await fetch(
+        `${getApiBaseUrl()}/Auth/reset-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            otp: normalizedOtp,
+            newPassword: password,
+            confirmPassword,
+          }),
         },
-        body: JSON.stringify({
-          email: email.trim(),
-          otp: otp.trim(),
-          newPassword: password,
-          confirmPassword,
-        }),
-      });
+      );
 
-      const payload = (await response.json().catch(() => null)) as
-        | ResetPasswordResponse
-        | null;
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.message || "Không thể cập nhật mật khẩu. Vui lòng thử lại.");
+        const errorMsg =
+          payload?.message ??
+          payload?.Message ??
+          "Đăng nhập thất bại. Vui lòng thử lại.";
+        toast.error(errorMsg, { position: "top-center" });
+        return;
       }
 
-      setSubmitStatus({
-        type: "success",
-        message:
-          payload?.message || "Cập nhật mật khẩu thành công. Đang chuyển đến trang đăng nhập...",
-      });
-
-      setTimeout(() => {
-        router.push("/dang-nhap");
-      }, 1200);
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Không thể cập nhật mật khẩu lúc này. Vui lòng thử lại sau.",
-      );
+      const successMsg =
+        payload?.message ?? payload?.Message ?? "Đăng nhập thành công!";
+      toast.success(successMsg, { position: "top-center" });
+      router.push("/dang-nhap");
+    } catch {
+      setError("Không kết nối được tới máy chủ. Vui lòng thử lại sau.");
     } finally {
       setIsSubmitting(false);
     }
@@ -167,15 +152,6 @@ export default function NewPasswordForm({
                 required
               />
               <FieldError>{error}</FieldError>
-              {submitStatus && (
-                <FieldError
-                  className={
-                    submitStatus.type === "success" ? "text-green-600" : undefined
-                  }
-                >
-                  {submitStatus.message}
-                </FieldError>
-              )}
               <FieldDescription>
                 Mật khẩu nên có chữ hoa, chữ thường, số và ký tự đặc biệt.
               </FieldDescription>
@@ -185,7 +161,7 @@ export default function NewPasswordForm({
 
         <CardFooter>
           <Field>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="w-full">
               {isSubmitting ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
             </Button>
           </Field>

@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,131 +23,85 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getApiBaseUrl } from "../../lib/auth";
+import { toast } from "sonner";
+const registerSchema = z
+  .object({
+    fullName: z.string().trim().min(1, "Vui lòng nhập họ và tên."),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Vui lòng nhập email.")
+      .email("Email không đúng định dạng."),
+    password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự."),
+    confirmPassword: z.string().min(1, "Vui lòng nhập lại mật khẩu."),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Mật khẩu và xác nhận mật khẩu không khớp.",
+  });
 
-type RegisterResponse = {
-  message?: string;
-};
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
   const router = useRouter();
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5265";
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const [formData, setFormData] = useState({
-    fullname: "",
-    email: "",
-    password: "",
-    rePassword: "",
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    mode: "onChange",
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
-  const handleEnterToNextField = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== "Enter" || event.shiftKey) {
-      return;
-    }
-
-    const target = event.target as HTMLElement | null;
-    if (!target) {
-      return;
-    }
-
-    if (target.tagName.toLowerCase() === "textarea") {
-      return;
-    }
-
-    const elements = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>(
-        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter(
-      (element) =>
-        !element.hasAttribute("disabled") &&
-        element.getAttribute("type") !== "hidden" &&
-        element.tabIndex !== -1,
-    );
-
-    const currentIndex = elements.indexOf(target);
-    if (currentIndex === -1 || currentIndex === elements.length - 1) {
-      return;
-    }
-
-    event.preventDefault();
-    elements[currentIndex + 1]?.focus();
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitStatus(null);
-
-    if (
-      !formData.fullname.trim() ||
-      !formData.email.trim() ||
-      !formData.password ||
-      !formData.rePassword
-    ) {
-      setSubmitStatus({
-        type: "error",
-        message: "Vui lòng nhập đầy đủ thông tin đăng ký.",
-      });
-      return;
-    }
-
-    if (formData.password !== formData.rePassword) {
-      setSubmitStatus({
-        type: "error",
-        message: "Mật khẩu nhập lại không khớp.",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
+  const onSubmit = async (values: RegisterFormValues) => {
+    setErrorMessage("");
+    setSuccessMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/Auth/register`, {
+      const response = await fetch(`${getApiBaseUrl()}/Auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         body: JSON.stringify({
-          fullName: formData.fullname.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-          confirmPassword: formData.rePassword,
+          fullName: values.fullName.trim(),
+          email: values.email.trim(),
+          password: values.password,
+          confirmPassword: values.confirmPassword,
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as
-        | RegisterResponse
-        | null;
+      const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(payload?.message || "Đăng ký thất bại. Vui lòng thử lại.");
+        const errorMsg =
+          payload?.message ??
+          payload?.Message ??
+          "Đăng ký thất bại. Vui lòng thử lại.";
+        toast.error(errorMsg, { position: "top-center" });
+        return;
       }
 
-      setSubmitStatus({
-        type: "success",
-        message: payload?.message || "Đăng ký thành công. Đang chuyển đến trang đăng nhập...",
-      });
-
+      const successMsg =
+        payload?.message ?? payload?.Message ?? "Đăng ký thành công!";
+      toast.success(successMsg, { position: "top-center" });
       setTimeout(() => {
         router.push("/dang-nhap");
-      }, 1200);
-    } catch (error) {
-      console.error("Cannot register", error);
-      setSubmitStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Không thể đăng ký lúc này. Vui lòng thử lại sau.",
-      });
-    } finally {
-      setIsSubmitting(false);
+      }, 800);
+    } catch {
+      setErrorMessage("Không kết nối được tới máy chủ. Vui lòng thử lại sau.");
     }
   };
 
@@ -155,7 +111,7 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
         <CardHeader>
           <CardTitle className="text-xl font-bold">Đăng ký</CardTitle>
           <CardDescription>
-            Nhập thông tin của bạn bên dưới để tạo tài khoản
+            Nhập tên tài khoản hoặc email của bạn bên dưới để tạo tài khoản
           </CardDescription>
           <CardAction>
             <Link href="/">
@@ -164,7 +120,7 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} onKeyDown={handleEnterToNextField}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="fullname">Họ và tên</FieldLabel>
@@ -173,34 +129,22 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
                   type="text"
                   placeholder="Nhập họ và tên"
                   autoComplete="name"
-                  value={formData.fullname}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      fullname: event.target.value,
-                    }))
-                  }
+                  {...register("fullName")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.fullName]} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Nhập email"
+                  placeholder="mail@example.com"
                   autoComplete="email"
-                  value={formData.email}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      email: event.target.value,
-                    }))
-                  }
+                  {...register("email")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.email]} />
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -210,16 +154,11 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
                   id="password"
                   type="password"
                   autoComplete="new-password"
-                  value={formData.password}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
+                  placeholder="******"
+                  {...register("password")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.password]} />
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -231,35 +170,34 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
                   id="rePassword"
                   type="password"
                   autoComplete="new-password"
-                  value={formData.rePassword}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      rePassword: event.target.value,
-                    }))
-                  }
+                  placeholder="******"
+                  {...register("confirmPassword")}
                   disabled={isSubmitting}
                 />
-                <FieldError />
+                <FieldError errors={[errors.confirmPassword]} />
               </Field>
               <Field>
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {errorMessage ? (
+                  <p className="mb-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                ) : null}
+                {successMessage ? (
+                  <p className="mb-2 text-sm text-emerald-600">
+                    {successMessage}
+                  </p>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={!isValid || isSubmitting}
+                >
                   {isSubmitting ? "Đang đăng ký..." : "Đăng ký"}
                 </Button>
                 <Button variant="outline" type="button" disabled={isSubmitting}>
                   Đăng ký với Google
                 </Button>
-
-                {submitStatus && (
-                  <FieldError
-                    className={
-                      submitStatus.type === "success" ? "text-green-600" : undefined
-                    }
-                  >
-                    {submitStatus.message}
-                  </FieldError>
-                )}
-
                 <FieldDescription className="text-center">
                   Bạn đã có tài khoản?
                   <Link href="/dang-nhap">
