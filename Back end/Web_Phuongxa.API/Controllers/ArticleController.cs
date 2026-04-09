@@ -267,13 +267,20 @@ namespace Web_Phuongxa.API.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteArticle(int id)
         {
-            var article = await _context.Articles.FindAsync(id);
+            var article = await _context.Articles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.ArticleId == id);
+
             if (article == null)
             {
                 return NotFound(new { Message = "Không tìm thấy bài viết!" });
             }
 
-            _context.Articles.Remove(article);
+            await _context.Comments
+                .Where(c => c.ArticleId == id)
+                .ExecuteDeleteAsync();
+
+            _context.Articles.Remove(new Article { ArticleId = id });
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Đã xóa bài viết thành công!" });
