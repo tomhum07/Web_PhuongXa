@@ -243,7 +243,6 @@ namespace Web_Phuongxa.API.Controllers
                     ProcedureCount = c.Services.Count(s => s.IsActive == true),
                     c.CreatedAt
                 })
-                .Where(x => x.ProcedureCount > 0)
                 .OrderBy(x => x.FieldName)
                 .ToListAsync();
 
