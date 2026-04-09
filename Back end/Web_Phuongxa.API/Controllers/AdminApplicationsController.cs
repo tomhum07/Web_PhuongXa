@@ -233,7 +233,6 @@ namespace Web_Phuongxa.API.Controllers
         {
             var fields = await _context.ServiceCategories
                 .AsNoTracking()
-                .Where(c => c.IsActive == true)
                 .Select(c => new
                 {
                     c.ServiceCategoryId,
@@ -241,6 +240,7 @@ namespace Web_Phuongxa.API.Controllers
                     FieldName = c.Name,
                     c.Description,
                     ProcedureCount = c.Services.Count(s => s.IsActive == true),
+                    Status = c.IsActive == true ? 1 : 0,
                     c.CreatedAt
                 })
                 .OrderBy(x => x.FieldName)
@@ -357,18 +357,9 @@ namespace Web_Phuongxa.API.Controllers
         [HttpGet("procedures")]
         public async Task<IActionResult> GetProcedures([FromQuery] int? serviceCategoryId)
         {
-            var query = _context.Services
+            var procedures = await _context.Services
                 .AsNoTracking()
                 .Include(s => s.ServiceCategory)
-                .Where(s => s.IsActive == true && s.ServiceCategory != null && s.ServiceCategory.IsActive == true)
-                .AsQueryable();
-
-            if (serviceCategoryId.HasValue)
-            {
-                query = query.Where(s => s.ServiceCategoryId == serviceCategoryId.Value);
-            }
-
-            var procedures = await query
                 .OrderBy(s => s.ServiceId)
                 .Select(s => new
                 {
