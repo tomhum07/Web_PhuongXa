@@ -196,18 +196,27 @@ export async function deleteArticle(id: number) {
     const response = await fetch(`${API_PREFIX}/Article/${id}`, {
       method: "DELETE",
       headers: {
+        Accept: "application/json",
         "Content-Type": "application/json",
       },
     });
 
+    const data = await response.json().catch(() => null);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData =
+        data && typeof data === "object"
+          ? (data as { message?: string; Message?: string })
+          : null;
+
       throw new Error(
-        errorData.message || `Failed to delete article: ${response.statusText}`,
+        errorData?.message ||
+          errorData?.Message ||
+          `Failed to delete article: ${response.statusText}`,
       );
     }
 
-    return await response.json();
+    return data;
   } catch (error) {
     console.error("Error deleting article:", error);
     throw error;

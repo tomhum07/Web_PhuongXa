@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-<<<<<<< HEAD
-=======
+import type { Metadata } from "next";
+import { generatePageMetadata } from "@/lib/seo";
 import { API_BASE_URL } from "@/lib/api/config";
 import { Camera, FolderOpen, Images } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type GalleryApiItem = {
   imageId?: number;
@@ -32,8 +32,6 @@ type GalleryItem = {
   createdAt?: string;
 };
 
-<<<<<<< HEAD
-=======
 function getFolderName(section: string): string {
   const normalized = section.trim().replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
@@ -56,7 +54,6 @@ function isThumbnailName(value: string): boolean {
   );
 }
 
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
 function normalizeGalleryResponse(payload: unknown): GalleryApiItem[] {
   // Backend có thể trả về mảng trực tiếp hoặc bọc trong wrapper object
   if (Array.isArray(payload)) {
@@ -79,17 +76,12 @@ function normalizeGalleryResponse(payload: unknown): GalleryApiItem[] {
 
 function mapGalleryItem(
   item: GalleryApiItem,
-<<<<<<< HEAD
-  index: number
-): GalleryItem | null {
-=======
   index: number,
 ): GalleryItem | null {
   if (item.section && isThumbnailFolder(item.section)) {
     return null;
   }
 
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
   // Chuẩn hóa ID: ưu tiên imageId từ backend
   const itemId = item.imageId ?? item.id ?? index + 1;
 
@@ -103,32 +95,22 @@ function mapGalleryItem(
 
   return {
     id: itemId,
-<<<<<<< HEAD
-    title: item.title?.trim() || `Hình ảnh #${index + 1}`,
-    section: item.section?.trim() || "Thư viện",
-=======
     title: item.title?.trim() || `Hinh anh #${index + 1}`,
     section: item.section?.trim() || "Thu vien",
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
     imageUrl,
     createdAt: item.createdAt,
   };
 }
 
 export default function ThuVienPage() {
-<<<<<<< HEAD
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://phuongxa-api-backend-fuc4gzgyauanbhc7.southeastasia-01.azurewebsites.net/api";
-=======
   const apiBaseUrl = API_BASE_URL;
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
 
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
-<<<<<<< HEAD
-=======
   const galleryByFolder = useMemo(() => {
     const groups = new Map<string, GalleryItem[]>();
 
@@ -148,7 +130,17 @@ export default function ThuVienPage() {
       .sort((a, b) => a.folderName.localeCompare(b.folderName, "vi"));
   }, [gallery]);
 
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
+  // Set default folder khi load dữ liệu
+  useEffect(() => {
+    if (!selectedFolder && galleryByFolder.length > 0) {
+      setSelectedFolder(galleryByFolder[0].folderName);
+    }
+  }, [galleryByFolder, selectedFolder]);
+
+  const filteredGroup = useMemo(() => {
+    return galleryByFolder.find((group) => group.folderName === selectedFolder);
+  }, [galleryByFolder, selectedFolder]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -157,24 +149,16 @@ export default function ThuVienPage() {
       setError(null);
 
       try {
-<<<<<<< HEAD
-        const response = await fetch(`${apiBaseUrl}/Gallery`, {
-=======
         const response = await fetch(`${apiBaseUrl}/api/Gallery`, {
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
           headers: {
             Accept: "application/json",
           },
         });
 
         if (!response.ok) {
-<<<<<<< HEAD
-          throw new Error(`Không thể tải danh sách ảnh (HTTP ${response.status}).`);
-=======
           throw new Error(
             `Khong the tai danh sach anh (HTTP ${response.status}).`,
           );
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
         }
 
         const payload = (await response.json().catch(() => null)) as unknown;
@@ -190,11 +174,7 @@ export default function ThuVienPage() {
           setError(
             fetchError instanceof Error
               ? fetchError.message
-<<<<<<< HEAD
-              : "Không thể tải danh sách ảnh lúc này."
-=======
               : "Khong the tai danh sach anh luc nay.",
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
           );
         }
       } finally {
@@ -211,93 +191,6 @@ export default function ThuVienPage() {
     };
   }, [apiBaseUrl]);
 
-<<<<<<< HEAD
-  const totalImages = useMemo(() => gallery.length, [gallery]);
-
-  return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10">
-      <div className="mb-8 rounded-2xl border bg-linear-to-r from-sky-50 via-white to-cyan-50 p-6 md:p-8 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Thư viện Hình ảnh</h1>
-        <p className="text-sm font-medium text-slate-600">Tổng số ảnh: {totalImages}</p>
-      </div>
-
-      {isLoading ? (
-        <div className="rounded-lg border border-dashed border-slate-300 p-12 text-center text-slate-500">
-          Đang tải dữ liệu thư viện...
-        </div>
-      ) : null}
-
-      {!isLoading && error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-600 shadow-sm">
-          {error}
-        </div>
-      ) : null}
-
-      {!isLoading && !error && gallery.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 p-12 text-center text-slate-500">
-          Chưa có ảnh nào trong thư viện.
-        </div>
-      ) : null}
-
-      {!isLoading && !error && gallery.length > 0 ? (
-        <div className="space-y-6 mt-8">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {gallery.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div 
-                  className="relative h-60 w-full bg-slate-100 overflow-hidden group cursor-pointer"
-                  onClick={() => setSelectedImage(item.imageUrl)}
-                >
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      // Fallback hiển thị ảnh mặc định khi bị 404 để không vỡ UI
-                      e.currentTarget.src = '/empty.jpg';
-                      e.currentTarget.onerror = null; // Tránh lặp vô hạn nếu ảnh fallback cũng lỗi
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="text-white font-medium">Bấm để xem ảnh lớn</span>
-                  </div>
-                </div>
-                <div className="space-y-2 p-5 bg-white">
-                  <h2 className="line-clamp-1 text-lg font-semibold text-slate-900">{item.title}</h2>
-                  <p className="text-sm font-medium text-sky-600 bg-sky-50 inline-block px-2.5 py-0.5 rounded-full capitalize">{item.section?.replace(/-/g, " ")}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Modal hiển thị ảnh lớn */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="relative max-h-screen max-w-full w-[90vw] h-[90vh]">
-            <img
-              src={selectedImage}
-              alt="Ảnh phóng to"
-              className="w-full h-full object-contain"
-            />
-            <button 
-              className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full w-10 h-10 p-0 flex items-center justify-center transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedImage(null);
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-=======
   return (
     <div>
       <div className="relative overflow-hidden border-b bg-sky-50/70  ">
@@ -355,20 +248,33 @@ export default function ThuVienPage() {
         ) : null}
 
         {!isLoading && !error && gallery.length > 0 ? (
-          <div className="space-y-8">
-            {galleryByFolder.map((group) => (
-              <div key={group.folderName} className="space-y-4">
-                <div className="flex items-end justify-between border-b pb-2">
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                    {group.folderName}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {group.items.length} ảnh
-                  </p>
-                </div>
+          <Tabs
+            value={selectedFolder || ""}
+            onValueChange={setSelectedFolder}
+            className="space-y-6"
+          >
+            {/* Tab List - Scrollable for mobile */}
+            <div>
+              <TabsList>
+                {galleryByFolder.map((group) => (
+                  <TabsTrigger key={group.folderName} value={group.folderName}>
+                    <span>{group.folderName}</span>
+                    <span className="ml-2 text-xs text-slate-500">
+                      ({group.items.length})
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
+            {/* Tab Content */}
+            {filteredGroup ? (
+              <TabsContent
+                value={filteredGroup.folderName}
+                className="space-y-4 mt-0"
+              >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {group.items.map((item) => (
+                  {filteredGroup.items.map((item) => (
                     <article
                       key={item.id}
                       className="overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-lg"
@@ -405,9 +311,9 @@ export default function ThuVienPage() {
                     </article>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
+              </TabsContent>
+            ) : null}
+          </Tabs>
         ) : null}
 
         {/* Modal hiển thị ảnh lớn */}
@@ -435,7 +341,6 @@ export default function ThuVienPage() {
           </div>
         )}
       </section>
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
     </div>
   );
 }

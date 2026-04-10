@@ -68,7 +68,7 @@ export function LoginForm({
     setErrorMessage("");
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/Auth/login`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/Auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -41,7 +41,7 @@ export default function RecoveryForm({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/Auth/forgot-password`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/Auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

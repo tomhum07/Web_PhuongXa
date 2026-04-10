@@ -5,16 +5,6 @@ export interface Category {
   slug: string;
 }
 
-export interface GalleryItem {
-  imageId: number;
-  section: string;
-  title: string;
-  imageUrl: string;
-  uploaderId: number;
-  isVisible: boolean;
-  createdAt: string;
-}
-
 export interface Article {
   articleId: number;
   categoryId: number;

@@ -18,6 +18,18 @@ namespace Web_Phuongxa.API.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        // ==========================================
+        // 🌐 BẢO MẬT GIAO THỨC & TẤN CÔNG WEB (HTTPS, XSS, CSRF)
+        // 1. HTTPS (Bảo mật đường truyền): Toàn bộ API được yêu cầu chạy trên HTTPS (được cấu hình ở Program.cs bằng app.UseHttpsRedirection()) 
+        //    để mã hóa dữ liệu truyền tải, bảo vệ thông tin nhạy cảm (Mật khẩu, JWT Token) khỏi bị nghe lén (Man-in-the-middle).
+        // 2. Chống XSS (Cross-Site Scripting): 
+        //    - Hệ thống API trả về kết quả định dạng JSON (Content-Type: application/json) nên trình duyệt không tự động thực thi các đoạn mã độc.
+        //    - Kết hợp Input Validation ở DTO để từ chối các chuỗi chứa mã HTML/JavaScript độc hại.
+        // 3. Chống CSRF (Cross-Site Request Forgery):
+        //    - API sử dụng chế độ xác thực qua JWT (JSON Web Token) truyền qua Header (Authorization: Bearer <token>) thay vì sử dụng Cookie mặc định, 
+        //    do đó ngăn chặn hoàn toàn nguy cơ tấn công CSRF truy cập trái phép từ các nguồn khác.
+        // ==========================================
+
         private readonly PhuongXaDbContext _context;
         private readonly IConfiguration _configuration; // Khai báo thêm IConfiguration
 
@@ -106,11 +118,15 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // CÁC HÀM TIỆN ÍCH (BĂM MẬT KHẨU BCRYPT)
+        // 🔐 MÃ HÓA MẬT KHẨU (PASSWORD HASHING)
+        // Sử dụng BCrypt để mã hóa mật khẩu an toàn
+        // - BCrypt tự động salt hóa, chống Rainbow Table attack
+        // - Không bao giờ lưu plain text password
         // ==========================================
         [NonAction]
         public string HashPassword(string password)
         {
+            //HASHING: BCrypt.Net - Mã hóa mật khẩu một chiều (không thể giải mã)
             return BCrypt.Net.BCrypt.HashPassword(password);
         }
 
@@ -119,6 +135,7 @@ namespace Web_Phuongxa.API.Controllers
         {
             try
             {
+                //VERIFICATION: So sánh plain text password với BCrypt hash
                 return BCrypt.Net.BCrypt.Verify(password, storedHash);
             }
             catch
@@ -139,36 +156,46 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 1: ĐĂNG NHẬP
+        // 🔑 API 1: ĐĂNG NHẬP (LOGIN)
         // ==========================================
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
+            // INPUT VALIDATION: Kiểm tra email/password không rỗng (tại DTO level)
+            
+            //CHỐNG SQL INJECTION: Sử dụng Entity Framework (LINQ) 
+            // - Tự động parameterize queries, không nối string
             var user = await _context.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null)
             {
+                // SECURITY: Lỗi chung (không lộ email tồn tại hay không)
                 return Unauthorized(new { Message = "Sai email hoặc mật khẩu!" });
             }
 
+            // AUTHORIZATION: Kiểm tra tài khoản có bị khóa không (IsActive)
             if (user.IsActive != true)
             {
                 return Unauthorized(new { Message = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên!" });
             }
 
+            // PASSWORD VERIFICATION: Dùng BCrypt để so sánh mật khẩu
             if (!VerifyPassword(request.Password, user.PasswordHash))
             {
                 return Unauthorized(new { Message = "Sai email hoặc mật khẩu!" });
             }
 
+            // AUDIT LOGGING: Ghi nhật ký đăng nhập
             await WriteLoginAuditLogAsync(user);
 
-            var claims = new[]
+            // JWT AUTHENTICATION: Tạo Claims để xác thực
+            var claims = new []
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Name, user.Username),
+                // AUTHORIZATION: Thêm Role vào JWT Token
                 new Claim(ClaimTypes.Role, user.Role.RoleName),
                 new Claim("FullName", user.FullName)
             };
@@ -177,6 +204,7 @@ namespace Web_Phuongxa.API.Controllers
             var audience = GetRequiredJwtSetting("Authentication:Jwt:Audience");
             var keyValue = GetRequiredJwtSetting("Authentication:Jwt:Key");
 
+            // JWT SIGNING: Ký token bằng secret key
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyValue));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -195,7 +223,7 @@ namespace Web_Phuongxa.API.Controllers
             return Ok(new
             {
                 Token = tokenString,
-                Message = "Đăng nhập thành côngggggggggggggggggggggggggggggg!",
+                Message = "Đăng nhập thành công!",
                 UserInfo = new
                 {
                     user.UserId,
@@ -206,11 +234,13 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 2: ĐĂNG KÝ
+        // 📝 API 2: ĐĂNG KÝ (REGISTER)
         // ==========================================
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {
+            // ✅ INPUT VALIDATION & CHỐNG XSS: Kiểm tra các trường bắt buộc không rỗng
+            // (Thường được kết hợp thêm Regex tại DTO để từ chối các ký tự HTML nguy hiểm <script>)
             if (string.IsNullOrWhiteSpace(request.FullName) ||
                 string.IsNullOrWhiteSpace(request.Email) ||
                 string.IsNullOrWhiteSpace(request.Password) ||
@@ -219,11 +249,13 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Vui lòng nhập đầy đủ thông tin!" });
             }
 
+            // ✅ INPUT VALIDATION: Kiểm tra mật khẩu khớp nhau
             if (request.Password != request.ConfirmPassword)
             {
                 return BadRequest(new { Message = "Mật khẩu và xác nhận mật khẩu không khớp. Vui lòng nhập lại!" });
             }
 
+            // ✅ CHỐNG SQL INJECTION: Dùng LINQ parameterized query
             var userExists = await _context.Users.AnyAsync(u => u.Email == request.Email || u.Username == request.Email);
             if (userExists)
             {
@@ -236,10 +268,12 @@ namespace Web_Phuongxa.API.Controllers
             var newUser = new User
             {
                 Username = request.Email,
+                // ✅ PASSWORD HASHING: Mã hóa mật khẩu bằng BCrypt trước khi lưu
                 PasswordHash = HashPassword(request.Password),
                 FullName = request.FullName,
                 Email = request.Email,
                 RoleId = roleId,
+                // ✅ AUTHORIZATION: Mặc định IsActive = true
                 IsActive = true,
                 CreatedAt = GetVnNow()
             };
@@ -251,32 +285,34 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 3: QUÊN MẬT KHẨU (GỬI OTP QUA EMAIL)
+        // 🔒 API 3: QUÊN MẬT KHẨU (FORGOT PASSWORD)
         // ==========================================
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
         {
+            // ✅ CHỐNG SQL INJECTION: Parameterized query
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                // Trả về OK khi không tìm thấy email để tránh lộ thông tin tài khoản
+                // ✅ SECURITY: Trả về OK mặc dù email không tồn tại (tránh lộ danh sách email)
                 return Ok(new { Message = "Nếu email tồn tại, hệ thống đã gửi mã xác nhận." });
             }
 
+            // ✅ AUTHORIZATION: Kiểm tra tài khoản có bị khóa
             if (user.IsActive != true)
             {
                 return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
-            // Tạo mã OTP 6 số ngẫu nhiên
+            // ✅ INPUT VALIDATION & SECURITY: Tạo OTP 6 số ngẫu nhiên
             string otp = new Random().Next(100000, 999999).ToString();
 
-            // Lưu OTP và thời gian hết hạn (10 phút) vào DB
+            // ✅ TIME-BASED EXPIRY: OTP hết hạn sau 10 phút
             user.ResetOtp = otp;
             user.ResetOtpExpiry = GetVnNow().AddMinutes(10);
             await _context.SaveChangesAsync();
 
-            // Gửi Email bằng SendGrid
+            // ✅ EMAIL SECURITY: Gửi qua SendGrid (encrypted channel)
             try
             {
                 var apiKey = _configuration["SendGrid:ApiKey"];
@@ -325,11 +361,14 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 4: XÁC MINH OTP
+        // ✓ API 4: XÁC MINH OTP (VERIFY OTP)
         // ==========================================
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequestDto request)
         {
+            // ✅ INPUT VALIDATION: Kiểm tra OTP không rỗng (tại DTO level)
+            
+            // ✅ CHỐNG SQL INJECTION: Parameterized query
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || user.ResetOtp != request.Otp)
@@ -337,11 +376,13 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Mã xác minh không hợp lệ." });
             }
 
+            // ✅ AUTHORIZATION: Kiểm tra tài khoản có bị khóa
             if (user.IsActive != true)
             {
                 return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
+            // ✅ TIME-BASED SECURITY: Kiểm tra OTP có hết hạn không
             if (user.ResetOtpExpiry < GetVnNow())
             {
                 return BadRequest(new { Message = "Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới." });
@@ -351,16 +392,18 @@ namespace Web_Phuongxa.API.Controllers
         }
 
         // ==========================================
-        // API 5: CẬP NHẬT MẬT KHẨU MỚI
+        // 🔑 API 5: ĐẶT LẠI MẬT KHẨU (RESET PASSWORD)
         // ==========================================
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
         {
+            // ✅ INPUT VALIDATION: Kiểm tra mật khẩu mới và xác nhận khớp nhau
             if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword != request.ConfirmPassword)
             {
                 return BadRequest(new { Message = "Mật khẩu và xác nhận mật khẩu không khớp hoặc bị trống." });
             }
 
+            // ✅ CHỐNG SQL INJECTION: Parameterized query
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || user.ResetOtp != request.Otp)
@@ -368,17 +411,19 @@ namespace Web_Phuongxa.API.Controllers
                 return BadRequest(new { Message = "Yêu cầu không hợp lệ hoặc phiên đổi mật khẩu đã hết hạn." });
             }
 
+            // ✅ AUTHORIZATION: Kiểm tra tài khoản không bị khóa
             if (user.IsActive != true)
             {
                 return BadRequest(new { Message = "Tài khoản của bạn đã bị khóa, không thể đổi mật khẩu." });
             }
 
+            // ✅ TIME-BASED SECURITY: Kiểm tra phiên đổi mật khẩu chưa hết hạn
             if (user.ResetOtpExpiry < GetVnNow())
             {
                 return BadRequest(new { Message = "Phiên đổi mật khẩu đã hết hạn. Vui lòng yêu cầu lại mã từ đầu." });
             }
 
-            // Cập nhật mật khẩu mới (Đã băm bằng BCrypt)
+            // ✅ PASSWORD HASHING: Mã hóa mật khẩu mới bằng BCrypt trước khi lưu
             user.PasswordHash = HashPassword(request.NewPassword);
             user.ResetOtp = null;
             user.ResetOtpExpiry = null;

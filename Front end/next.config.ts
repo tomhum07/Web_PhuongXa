@@ -6,15 +6,9 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '5265',
+        protocol: "https",
+        hostname: "api.tomhum07.me",
       },
-      // Thêm domain thật khi bạn đưa lên production (Ví dụ)
-      {
-        protocol: 'https',
-        hostname: 'api.tomhum07.me', 
-      }
     ],
   },
 };

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Category, Article } from "@/types";
 import { updateArticle, uploadArticleThumbnail } from "@/lib/api/article";
+import { API_BASE_URL } from "@/lib/api/config";
 import { getCurrentUserId } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Image from "next/image";
+
+function resolveThumbnailPreviewUrl(thumbnailUrl?: string): string {
+  if (!thumbnailUrl) {
+    return "";
+  }
+
+  if (
+    /^https?:\/\//i.test(thumbnailUrl) ||
+    /^data:/i.test(thumbnailUrl) ||
+    /^blob:/i.test(thumbnailUrl)
+  ) {
+    return thumbnailUrl;
+  }
+
+  const normalizedPath = thumbnailUrl.startsWith("/")
+    ? thumbnailUrl
+    : `/${thumbnailUrl}`;
+
+  return API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
+}
 
 type TinyEditorHandle = {
   setContent: (content: string) => void;
@@ -55,7 +76,7 @@ export function ArticleEditForm({
   const [success, setSuccess] = useState(false);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [previewThumbnail, setPreviewThumbnail] = useState<string>(
-    article.thumbnailUrl || "",
+    resolveThumbnailPreviewUrl(article.thumbnailUrl),
   );
   const currentUserId = getCurrentUserId();
 
@@ -83,7 +104,7 @@ export function ArticleEditForm({
       thumbnailUrl: article.thumbnailUrl || "",
       status: article.status || "Draft",
     });
-    setPreviewThumbnail(article.thumbnailUrl || "");
+    setPreviewThumbnail(resolveThumbnailPreviewUrl(article.thumbnailUrl));
     setThumbnailFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -328,9 +349,7 @@ export function ArticleEditForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Draft">Nháp</SelectItem>
-                <SelectItem value="PendingApproval">Chờ duyệt</SelectItem>
                 <SelectItem value="Published">Xuất bản</SelectItem>
-                <SelectItem value="Rejected">Từ chối</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -341,7 +360,7 @@ export function ArticleEditForm({
             <Label className="mb-2 block text-sm font-medium">
               Ảnh đại diện hiện tại:
             </Label>
-            <div className="relative h-48 w-full overflow-hidden rounded-md bg-muted">
+            <div className="relative h-50 w-100 overflow-hidden rounded-md bg-muted">
               <Image
                 src={previewThumbnail}
                 alt="Thumbnail preview"

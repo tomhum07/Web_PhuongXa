@@ -3,6 +3,8 @@ import { getPublicArticles } from "@/lib/api/article";
 import { Article } from "@/types";
 import Image from "next/image";
 import { API_BASE_URL } from "@/lib/api/config";
+import type { Metadata } from "next";
+import { generatePageMetadata } from "@/lib/seo";
 import { BellRing, CalendarDays, Newspaper } from "lucide-react";
 import {
   Card,
@@ -11,10 +13,29 @@ import {
   CardDescription,
   CardFooter,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { NewsCategorySelect } from "@/components/site/news-category-select";
 
+export const metadata: Metadata = generatePageMetadata({
+  title: "Tin Tức & Thông Báo | Phường Cao Lãnh",
+  description:
+    "Cập nhật tin tức, thông báo và sự kiện mới nhất từ Phường Cao Lãnh. Thông tin chính thống từ chính quyền địa phương.",
+  keywords: ["tin tức", "thông báo", "Phường Cao Lãnh", "Cao Lãnh", "sự kiện"],
+  url: "/tin-tuc",
+});
+
+// ISR - Revalidate every 5 minutes (300 seconds)
+// This page will be statically generated and revalidated in the background
 export const revalidate = 300;
+
+// Use dynamic rendering for query parameters
+export const dynamic = "force-dynamic";
+
+type TinTucPageProps = {
+  searchParams: Promise<{
+    category?: string;
+  }>;
+};
 
 function formatPublishedDate(article: Article): string {
   const rawDate = article.publishedAt || article.createdAt || article.updatedAt;
@@ -42,8 +63,33 @@ function resolveThumbnailUrl(thumbnailUrl?: string): string {
   return `${API_BASE_URL}${normalizedPath}`;
 }
 
-export default async function TinTuc() {
+export default async function TinTuc({ searchParams }: TinTucPageProps) {
+  const { category } = await searchParams;
+  const selectedCategoryId = Number(category);
+  const hasValidCategoryFilter =
+    Number.isFinite(selectedCategoryId) && selectedCategoryId > 0;
+
   const articles = (await getPublicArticles()) as Article[];
+  const categoriesWithArticles = Array.from(
+    new Map(
+      articles
+        .filter((article) => article.categoryId > 0)
+        .map((article) => [
+          article.categoryId,
+          {
+            categoryId: article.categoryId,
+            name: article.categoryName || `Danh mục ${article.categoryId}`,
+          },
+        ]),
+    ).values(),
+  );
+
+  const filteredArticles = hasValidCategoryFilter
+    ? articles.filter((article) => article.categoryId === selectedCategoryId)
+    : articles;
+  const selectedCategoryValue = hasValidCategoryFilter
+    ? String(selectedCategoryId)
+    : "all";
 
   return (
     <div>
@@ -79,27 +125,25 @@ export default async function TinTuc() {
       </div>
       <main className="container mx-auto mt-8 space-y-10 px-6">
         <div>
-          <Tabs defaultValue="all">
-            <TabsList variant="default">
-              <TabsTrigger value="all">Tất cả</TabsTrigger>
-              <TabsTrigger value="1">1</TabsTrigger>
-              <TabsTrigger value="2">2</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <NewsCategorySelect
+            categories={categoriesWithArticles}
+            selectedValue={selectedCategoryValue}
+          />
         </div>
-        {articles.length === 0 ? (
+
+        {filteredArticles.length === 0 ? (
           <p className="text-center text-muted-foreground">
-            Chưa có bài viết để hiển thị.
+            Không có bài viết trong danh mục đã chọn.
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-6">
-            {articles.map((article) => {
+            {filteredArticles.map((article) => {
               const thumbnailUrl = resolveThumbnailUrl(article.thumbnailUrl);
               return (
                 <Link
                   href={`/tin-tuc/${article.articleId}`}
                   key={article.articleId}
-                  className="hover:text-pink-600 transition-colors duration-100"
+                  className="hover:text-pink-600 transition-colors duration-100 "
                 >
                   <Card className="group h-full gap-0 overflow-hidden rounded-3xl bg-[#f3f5f4] py-0 shadow-[0_12px_32px_rgba(15,23,42,0.08)] ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(15,23,42,0.14)]">
                     <div className="relative aspect-video w-full overflow-hidden">

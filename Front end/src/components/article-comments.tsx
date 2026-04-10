@@ -13,6 +13,8 @@ import {
   ArticleComment,
   createComment,
   getCommentsByArticle,
+  updateComment,
+  deleteComment,
 } from "@/lib/api/comment";
 
 type ArticleCommentsProps = {
@@ -67,6 +69,8 @@ export function ArticleComments({
     visibleInitialComments.length === 0,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [authState, setAuthState] = useState<{
     isLoggedIn: boolean;
@@ -80,7 +84,7 @@ export function ArticleComments({
 
   const { isLoggedIn, currentUserId, currentUserName } = authState;
 
-  useEffect(() => {
+  function updateAuthState() {
     const authProfile = getAuthProfile();
     const userId = getCurrentUserId();
     const loggedIn = typeof userId === "number" && userId > 0;
@@ -90,6 +94,26 @@ export function ArticleComments({
       currentUserId: loggedIn ? userId : null,
       currentUserName: authProfile?.fullName?.trim() || "Bạn",
     });
+  }
+
+  useEffect(() => {
+    updateAuthState();
+
+    const handleStorageChange = () => {
+      updateAuthState();
+    };
+
+    const handleAuthStateChanged = () => {
+      updateAuthState();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("authStateChanged", handleAuthStateChanged);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("authStateChanged", handleAuthStateChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -195,6 +219,76 @@ export function ArticleComments({
     }
   }
 
+  function handleStartEdit(comment: ArticleComment) {
+    setEditingCommentId(comment.commentId);
+    setEditingContent(comment.content);
+  }
+
+  function handleCancelEdit() {
+    setEditingCommentId(null);
+    setEditingContent("");
+  }
+
+  async function handleSaveEdit(commentId: number) {
+    const normalizedContent = editingContent.trim();
+    if (!normalizedContent) {
+      toast.error("Nội dung bình luận không được để trống.");
+      return;
+    }
+
+    try {
+      await updateComment(commentId, normalizedContent);
+
+      setComments((previous) =>
+        previous.map((item) =>
+          item.commentId === commentId
+            ? {
+                ...item,
+                content: normalizedContent,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+
+      handleCancelEdit();
+      toast.success("Đã cập nhật bình luận.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Không thể cập nhật bình luận. Vui lòng thử lại.";
+      toast.error(message);
+    }
+  }
+
+  async function handleDelete(commentId: number) {
+    const shouldDelete = window.confirm("Bạn có chắc muốn xoá bình luận này?");
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await deleteComment(commentId);
+
+      setComments((previous) =>
+        previous.filter((item) => item.commentId !== commentId),
+      );
+
+      if (editingCommentId === commentId) {
+        handleCancelEdit();
+      }
+
+      toast.success("Đã xoá bình luận.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Không thể xóa bình luận. Vui lòng thử lại.";
+      toast.error(message);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <div id="comments" className="mx-auto max-w-3xl px-4 py-6">
@@ -254,24 +348,91 @@ export function ArticleComments({
                 key={comment.commentId}
                 className="rounded-xl border border-border bg-background p-4 my-5"
               >
-                <div className="mb-2 flex items-center gap-3">
-                  <Avatar size="sm">
-                    <AvatarFallback>
-                      {getInitials(comment.userName || "U")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {comment.userName || "Người dùng"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCreatedAt(comment.createdAt)}
-                    </p>
-                  </div>
-                </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {comment.content}
-                </p>
+                {(() => {
+                  const isOwner =
+                    isLoggedIn &&
+                    typeof currentUserId === "number" &&
+                    currentUserId === comment.userId;
+                  const isEditing = editingCommentId === comment.commentId;
+
+                  return (
+                    <>
+                      <div className="mb-2 flex items-center gap-3">
+                        <Avatar size="sm">
+                          <AvatarFallback>
+                            {getInitials(comment.userName || "U")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-semibold">
+                            {comment.userName || "Người dùng"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatCreatedAt(comment.createdAt)}
+                            {comment.updatedAt ? " • Đã chỉnh sửa" : ""}
+                          </p>
+                        </div>
+                        {isOwner ? (
+                          <div className="ml-auto flex items-center gap-2">
+                            {isEditing ? null : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStartEdit(comment)}
+                              >
+                                Sửa
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDelete(comment.commentId)}
+                            >
+                              Xoá
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editingContent}
+                            onChange={(event) =>
+                              setEditingContent(event.target.value)
+                            }
+                            rows={3}
+                            maxLength={1000}
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                            >
+                              Huỷ
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-pink-600"
+                              onClick={() => handleSaveEdit(comment.commentId)}
+                              disabled={!editingContent.trim()}
+                            >
+                              Lưu
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {comment.content}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </article>
             ))
           )}

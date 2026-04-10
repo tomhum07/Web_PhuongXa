@@ -15,24 +15,16 @@ export type CreateCategoryRequest = {
   parentId?: number | null;
 };
 
-<<<<<<< HEAD
-const API_BASE_URL = "https://api.tomhum07.me/api";
-=======
 type CreateCategoryApiResponse = {
   message?: string;
   category?: ApiCategory;
 } & Partial<ApiCategory>;
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
 
 export async function getCategories(
   signal?: AbortSignal,
 ): Promise<ApiCategory[]> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
-  const response = await fetch(`${API_BASE_URL}/admin/categories`, {
-    headers: { 
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`
-    },
+  const response = await fetch(`${API_BASE_URL}/api/admin/categories`, {
+    headers: { Accept: "application/json" },
     signal,
   });
 
@@ -48,13 +40,11 @@ export async function createCategory(
   request: CreateCategoryRequest,
   signal?: AbortSignal,
 ): Promise<ApiCategory> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
-  const response = await fetch(`${API_BASE_URL}/admin/categories`, {
+  const response = await fetch(`${API_BASE_URL}/api/admin/categories`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(request),
     signal,
@@ -78,12 +68,11 @@ export async function hideCategory(
   categoryId: number,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
   const response = await fetch(
-    `${API_BASE_URL}/admin/categories/${categoryId}/hide`,
+    `${API_BASE_URL}/api/admin/categories/${categoryId}/hide`,
     {
       method: "PUT",
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      headers: { Accept: "application/json" },
       signal,
     },
   );
@@ -97,12 +86,11 @@ export async function showCategory(
   categoryId: number,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
   const response = await fetch(
-    `${API_BASE_URL}/admin/categories/${categoryId}/show`,
+    `${API_BASE_URL}/api/admin/categories/${categoryId}/show`,
     {
       method: "PUT",
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      headers: { Accept: "application/json" },
       signal,
     },
   );

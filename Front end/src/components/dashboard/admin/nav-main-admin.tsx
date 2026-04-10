@@ -30,14 +30,14 @@ export function NavMainAdmin({
         <SidebarMenu>
           <SidebarGroupLabel>Tác vụ</SidebarGroupLabel>
           {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} className="text-base">
-                {item.icon}
-                <span>
-                  <Link href={`/admin${item.url}`}>{item.title}</Link>
-                </span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <Link key={item.title} href={`/admin${item.url}`}>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip={item.title} className="text-base">
+                  {item.icon}
+                  {item.title}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Link>
           ))}
         </SidebarMenu>
       </SidebarGroupContent>

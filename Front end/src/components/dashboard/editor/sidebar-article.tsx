@@ -2,8 +2,6 @@
 
 import * as React from "react";
 
-// import { NavDocuments } from "@/components/nav-documents";
-import { NavMain } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import {
@@ -12,14 +10,9 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboardIcon,
-  Settings2Icon,
-  CircleHelpIcon,
-  SearchIcon,
   CirclePlusIcon,
   FilePen,
   Trash2Icon,
@@ -28,6 +21,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
+import { NavMainEditor } from "@/components/dashboard/editor/nav-main-editor";
 
 const data = {
   user: {
@@ -126,7 +120,7 @@ export function SidebarArticle({
       </SidebarHeader>
       <Separator />
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMainEditor items={data.navMain} />
         {/* <NavDocuments items={data.documents} /> */}
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>

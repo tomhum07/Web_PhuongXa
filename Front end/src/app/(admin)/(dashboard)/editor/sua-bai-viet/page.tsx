@@ -3,11 +3,7 @@ import { SidebarArticle } from "@/components/dashboard/editor/sidebar-article";
 import { SiteHeaderArticle } from "@/components/dashboard/editor/site-header-article";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cookies } from "next/headers";
-import {
-  getCategories,
-  getArticles,
-  getArticlesByAuthor,
-} from "@/lib/api/article";
+import { getCategories, getArticlesByAuthor } from "@/lib/api/article";
 import { ArticleEditFormPage } from "@/components/dashboard/editor/article-edit-page";
 
 function getAuthorIdFromToken(token?: string): number | null {

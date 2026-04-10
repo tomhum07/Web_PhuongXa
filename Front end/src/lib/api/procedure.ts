@@ -21,6 +21,23 @@ export type ProcedureByField = {
   createdAt: string | null;
 };
 
+export type TrackedApplication = {
+  applicationId: number;
+  serviceId: number;
+  applicationCode: string;
+  applicantName: string;
+  identityNumber: string;
+  dateOfBirth: string | null;
+  address: string;
+  attachedFileUrl: string | null;
+  status: string;
+  statusText: string;
+  handlerId: number | null;
+  createdAt: string | null;
+  serviceName: string | null;
+  categoryName: string | null;
+};
+
 // export async function getProceduresFields(): Promise<ProcedureByField[]> {}
 
 export async function getProcedureFields(): Promise<ProcedureField[]> {
@@ -116,9 +133,94 @@ export async function getProceduresByField(
     }));
 }
 
-export async function submitPublicApplication(
-  formData: FormData,
-): Promise<{
+export async function trackPublicApplication(
+  applicationCode: string,
+): Promise<TrackedApplication | null> {
+  const normalizedCode = applicationCode.trim();
+
+  if (!normalizedCode) {
+    throw new Error("Vui lòng nhập mã hồ sơ để tra cứu.");
+  }
+
+  const endpoint = `${API_PREFIX}/public/applications/track?applicationCode=${encodeURIComponent(normalizedCode)}`;
+
+  const response = await fetch(endpoint, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const message =
+      errorData &&
+      typeof errorData === "object" &&
+      "Message" in errorData &&
+      typeof errorData.Message === "string"
+        ? errorData.Message
+        : `Không thể tra cứu hồ sơ: ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as {
+    ApplicationId?: number;
+    ServiceId?: number;
+    ApplicationCode?: string;
+    ApplicantName?: string;
+    IdentityNumber?: string;
+    DateOfBirth?: string | null;
+    Address?: string;
+    AttachedFileUrl?: string | null;
+    Status?: string;
+    StatusText?: string;
+    HandlerId?: number | null;
+    CreatedAt?: string | null;
+    ServiceName?: string | null;
+    CategoryName?: string | null;
+    applicationId?: number;
+    serviceId?: number;
+    applicationCode?: string;
+    applicantName?: string;
+    identityNumber?: string;
+    dateOfBirth?: string | null;
+    address?: string;
+    attachedFileUrl?: string | null;
+    status?: string;
+    statusText?: string;
+    handlerId?: number | null;
+    createdAt?: string | null;
+    serviceName?: string | null;
+    categoryName?: string | null;
+  };
+
+  const trackedApplication: TrackedApplication = {
+    applicationId: data.ApplicationId ?? data.applicationId ?? 0,
+    serviceId: data.ServiceId ?? data.serviceId ?? 0,
+    applicationCode:
+      data.ApplicationCode ?? data.applicationCode ?? normalizedCode,
+    applicantName: data.ApplicantName ?? data.applicantName ?? "",
+    identityNumber: data.IdentityNumber ?? data.identityNumber ?? "",
+    dateOfBirth: data.DateOfBirth ?? data.dateOfBirth ?? null,
+    address: data.Address ?? data.address ?? "",
+    attachedFileUrl: data.AttachedFileUrl ?? data.attachedFileUrl ?? null,
+    status: data.Status ?? data.status ?? "",
+    statusText: data.StatusText ?? data.statusText ?? "Chưa xác định",
+    handlerId: data.HandlerId ?? data.handlerId ?? null,
+    createdAt: data.CreatedAt ?? data.createdAt ?? null,
+    serviceName: data.ServiceName ?? data.serviceName ?? null,
+    categoryName: data.CategoryName ?? data.categoryName ?? null,
+  };
+
+  return trackedApplication;
+}
+
+export async function submitPublicApplication(formData: FormData): Promise<{
   applicationCode: string;
   applicationId: number;
   message: string;
@@ -139,11 +241,19 @@ export async function submitPublicApplication(
           Message?: string;
           ApplicationCode?: string;
           ApplicationId?: number;
+          message?: string;
+          applicationCode?: string;
+          applicationId?: number;
         };
         return {
-          applicationCode: responseData.ApplicationCode ?? "",
-          applicationId: responseData.ApplicationId ?? 0,
-          message: responseData.Message ?? "Nộp hồ sơ thành công!",
+          applicationCode:
+            responseData.ApplicationCode ?? responseData.applicationCode ?? "",
+          applicationId:
+            responseData.ApplicationId ?? responseData.applicationId ?? 0,
+          message:
+            responseData.Message ??
+            responseData.message ??
+            "Nộp hồ sơ thành công!",
         };
       }
 

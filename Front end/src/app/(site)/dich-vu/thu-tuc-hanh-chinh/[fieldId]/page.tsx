@@ -2,13 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import {
   getProcedureFields,
   getProceduresByField,
@@ -99,43 +93,65 @@ export default async function Page({
   }
 
   return (
-    <main className="container mx-auto px-4 py-10 space-y-6">
-      <Button asChild variant="ghost" size="sm" className="px-0 w-fit">
+    <main className="container mx-auto max-w-6xl px-4 py-12 space-y-8">
+      {/* BACK */}
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className="px-0 w-fit text-slate-600 hover:text-slate-900"
+      >
         <Link href="/dich-vu/thu-tuc-hanh-chinh">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Quay lại Thủ tục hành chính
         </Link>
       </Button>
 
-      {/* Header đẹp hơn */}
-      <div className="rounded-2xl border bg-gradient-to-r from-pink-50 via-white to-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          {/* Title */}
-          <div className="space-y-2">
-            <h1 className="text-3xl font-extrabold uppercase tracking-tight text-slate-900 md:text-4xl">
-              {fieldName ? `Lĩnh vực: ${fieldName}` : "Danh sách thủ tục"}
+      {/* HEADER */}
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-8 shadow-sm">
+        {/* glow */}
+        <div className="absolute -top-10 -right-10 h-40 w-40 bg-pink-200/40 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* LEFT */}
+          <div className="space-y-3">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+              {fieldName ? fieldName : "Danh sách thủ tục"}
             </h1>
-            <div className="flex items-center gap-2 rounded-xl ">
-              <p className="text-muted-foreground text-sm">Tổng số thủ tục:</p>
-              <Badge
-                variant="secondary"
-                className="text-base font-semibold bg-pink-100 text-pink-600"
-              >
+
+            <p className="text-sm text-slate-600 max-w-xl">
+              Danh sách các thủ tục hành chính thuộc lĩnh vực này. Bạn có thể
+              tra cứu và xem chi tiết từng thủ tục.
+            </p>
+
+            {/* badge */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Tổng số thủ tục:</span>
+
+              <Badge className="rounded-full bg-pink-100 text-pink-600 px-3 py-1 text-sm font-semibold shadow-sm">
                 {procedures.length}
               </Badge>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Content */}
+      {/* CONTENT */}
       {procedures.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Chưa có thủ tục nào trong lĩnh vực này
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 py-12 text-center shadow-sm">
+          <p className="text-slate-600 text-sm">
+            Chưa có thủ tục nào trong lĩnh vực này
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Vui lòng quay lại sau hoặc chọn lĩnh vực khác
+          </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border shadow-sm">
-          <ProcedureDataTable data={procedures} />
+        <div>
+          {/* table */}
+          <div className="overflow-x-auto">
+            <ProcedureDataTable data={procedures} />
+          </div>
         </div>
       )}
     </main>

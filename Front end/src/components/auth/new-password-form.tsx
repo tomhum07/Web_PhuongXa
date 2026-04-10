@@ -68,7 +68,7 @@ export default function NewPasswordForm({
     setIsSubmitting(true);
     try {
       const response = await fetch(
-        `${getApiBaseUrl()}/Auth/reset-password`,
+        `${getApiBaseUrl()}/api/Auth/reset-password`,
         {
           method: "POST",
           headers: {

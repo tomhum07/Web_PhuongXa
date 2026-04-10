@@ -147,6 +147,11 @@ app.UseSwagger();
 app.UseSwaggerUI();
 //}
 
+// ✅ HTTPS REDIRECTION: Bắt buộc chuyển hướng mọi HTTP request sang HTTPS (Thường bắt buộc trên Production)
+// Điều này giúp ngăn chặn các cuộc tấn công man-in-the-middle bằng cách mã hóa dữ liệu truyền tải.
+app.UseHttpsRedirection();
+
+// ✅ CORS PROTECTION: Chỉ cho phép các Origins được cấu hình truy cập (chống XSS từ các domain không đáng tin cậy)
 app.UseCors("AllowNextJS");
 app.UseAuthentication();
 app.UseAuthorization();

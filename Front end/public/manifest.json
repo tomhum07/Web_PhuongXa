@@ -1,0 +1,59 @@
+{
+  "name": "Phường Cao Lãnh",
+  "short_name": "Phuong Cao Lanh",
+  "description": "Trang web thông tin chính thức Phường Cao Lãnh, Thành Phố Cao Lãnh, Tỉnh Đồng Tháp",
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#ec4899",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/Logo_TPCaoLanh.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo_TPCaoLanh.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/Logo_TPCaoLanh.svg",
+      "sizes": "540x720",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["government", "news"],
+  "shortcuts": [
+    {
+      "name": "Tin Tức",
+      "short_name": "Tin Tức",
+      "description": "Xem tin tức mới nhất",
+      "url": "/tin-tuc",
+      "icons": [
+        {
+          "src": "/Logo_TPCaoLanh.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Dịch Vụ",
+      "short_name": "Dịch Vụ",
+      "description": "Dịch vụ công tại Phường Cao Lãnh",
+      "url": "/dich-vu",
+      "icons": [
+        {
+          "src": "/Logo_TPCaoLanh.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

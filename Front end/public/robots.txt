@@ -1,0 +1,25 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+Allow: /sitemap.xml
+
+# Specific rules for search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Disallow admin routes
+Disallow: /admin
+Disallow: /dang-nhap
+Disallow: /dang-ky
+Disallow: /quen-mat-khau
+Disallow: /tao-mat-khau
+Disallow: /xac-minh-otp
+
+# Crawler delay (in seconds)
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://phuongcaolanhdongtap.com/sitemap.xml

@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { deleteArticle, getArticles } from "@/lib/api/article";
+import { deleteArticle, getAdminArticles } from "@/lib/api/article";
 import { type Article } from "@/types";
 
 function normalizeStatus(status?: string): string {
@@ -98,7 +98,7 @@ export function ArticleDeleteTable({
     setIsLoading(true);
 
     try {
-      const data = (await getArticles()) as Article[];
+      const data = (await getAdminArticles()) as Article[];
       setArticles(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Cannot load articles", error);

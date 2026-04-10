@@ -20,12 +20,6 @@ export type ApiRole = {
   description?: string | null;
 };
 
-<<<<<<< HEAD
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://phuongxa-api-backend-fuc4gzgyauanbhc7.southeastasia-01.azurewebsites.net/api";
-
-=======
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
 type GetUsersParams = {
   roleId?: number;
   isActive?: boolean;
@@ -55,7 +49,7 @@ export async function getUsers(params?: GetUsersParams): Promise<ApiUser[]> {
 
   const query = searchParams.toString();
   const response = await fetch(
-    `${API_BASE_URL}/admin/users${query ? `?${query}` : ""}`,
+    `${API_BASE_URL}/api/admin/users${query ? `?${query}` : ""}`,
     {
       headers: { Accept: "application/json" },
       signal: params?.signal,
@@ -75,7 +69,7 @@ export async function lockUser(
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE_URL}/admin/users/${userId}/lock`,
+    `${API_BASE_URL}/api/admin/users/${userId}/lock`,
     {
       method: "PUT",
       headers: { Accept: "application/json" },
@@ -93,7 +87,7 @@ export async function unlockUser(
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE_URL}/admin/users/${userId}/unlock`,
+    `${API_BASE_URL}/api/admin/users/${userId}/unlock`,
     {
       method: "PUT",
       headers: { Accept: "application/json" },
@@ -107,7 +101,7 @@ export async function unlockUser(
 }
 
 export async function getRoles(signal?: AbortSignal): Promise<ApiRole[]> {
-  const response = await fetch(`${API_BASE_URL}/admin/users/roles`, {
+  const response = await fetch(`${API_BASE_URL}/api/admin/users/roles`, {
     headers: { Accept: "application/json" },
     signal,
   });
@@ -125,7 +119,7 @@ export async function changeUserRole(
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE_URL}/admin/users/${userId}/role`,
+    `${API_BASE_URL}/api/admin/users/${userId}/role`,
     {
       method: "PUT",
       headers: {

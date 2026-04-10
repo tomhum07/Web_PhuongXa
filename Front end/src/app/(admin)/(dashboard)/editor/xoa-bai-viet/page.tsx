@@ -4,11 +4,11 @@ import { ArticleDeleteTable } from "@/components/dashboard/editor/article-delete
 import { SidebarArticle } from "@/components/dashboard/editor/sidebar-article";
 import { SiteHeaderArticle } from "@/components/dashboard/editor/site-header-article";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { getArticles } from "@/lib/api/article";
+import { getAdminArticles } from "@/lib/api/article";
 import { Article } from "@/types";
 
 async function DeleteArticlePageContent() {
-  const articles = (await getArticles()) as Article[];
+  const articles = (await getAdminArticles()) as Article[];
 
   return (
     <div className="flex flex-1 flex-col">

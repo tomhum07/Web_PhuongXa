@@ -11,7 +11,6 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 
 import { Button } from "@/components/ui/button";
@@ -37,12 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-const components: {
-  id: number;
-  title: string;
-  href: string;
-  description: string;
-}[] = [
+// (Giữ nguyên mảng components và services của bạn)
+const components = [
   {
     id: 1,
     title: "Trang chủ",
@@ -71,7 +66,7 @@ const components: {
     id: 5,
     title: "Thư viện",
     href: "/thu-vien",
-    description: "Thư viện hình ảnh và tài liệu về Phường Cao Lãnh.",
+    description: "Thư viện hình ảnh và tài liệu.",
   },
 ];
 
@@ -80,47 +75,36 @@ const services = [
     id: 1,
     title: "Thủ tục hành chính",
     url: "/thu-tuc-hanh-chinh",
-    description:
-      "Cung cấp thông tin và hướng dẫn về các thủ tục hành chính tại Phường Cao Lãnh.",
+    description: "Cung cấp thông tin và hướng dẫn về các thủ tục hành chính.",
   },
   {
     id: 2,
     title: "Nộp hồ sơ",
     url: "/nop-ho-so",
-    description:
-      "Hỗ trợ nộp hồ sơ trực tuyến cho các dịch vụ công tại Phường Cao Lãnh.",
+    description: "Hỗ trợ nộp hồ sơ trực tuyến cho các dịch vụ công.",
   },
   {
     id: 3,
     title: "Tra cứu hồ sơ",
     url: "/tra-cuu-ho-so",
-    description:
-      "Cho phép người dân tra cứu tình trạng hồ sơ đã nộp tại Phường Cao Lãnh.",
+    description: "Cho phép người dân tra cứu tình trạng hồ sơ đã nộp.",
   },
 ];
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    return "ND";
-  }
-
+  if (parts.length === 0) return "ND";
   const first = parts[0]?.charAt(0) ?? "";
   const last =
     parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? "") : "";
-  const initials = `${first}${last}`.toUpperCase();
-
-  return initials || "ND";
+  return `${first}${last}`.toUpperCase() || "ND";
 }
 
 export function Navbar() {
-  // const [services, setServices] = useState<Service[]>([]);
   const [authRole, setAuthRole] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUserDisplay | null>(
     null,
   );
-  // const hasFetchedServices = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -132,10 +116,7 @@ export function Navbar() {
   const dashboardHref = getRedirectPathByRole(authRole ?? "");
 
   const isRouteActive = (href: string) => {
-    if (href === "/") {
-      return pathname === "/";
-    }
-
+    if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
@@ -150,13 +131,11 @@ export function Navbar() {
     const syncAuthState = () => {
       hydrateAuthCookiesFromStorage();
       const { token, role } = getAuthSnapshot();
-
       if (!token) {
         setAuthRole(null);
         setCurrentUser(null);
         return;
       }
-
       setAuthRole(role ?? "");
       setCurrentUser(getCurrentUserDisplay());
     };
@@ -172,31 +151,44 @@ export function Navbar() {
   }, [pathname]);
 
   return (
-    <div className="relative">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-2 sm:px-4">
-        <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Image
-            src="/Logo_TPCaoLanh.svg"
-            alt="Logo"
-            width={45}
-            height={45}
-            className="h-9 w-9 rounded-full object-cover sm:h-11 sm:w-11"
-          />
-          <span className="truncate text-base font-bold sm:text-xl ">
-            Phường Cao Lãnh
-          </span>
+    // Sticky top để thanh menu ghim lại khi cuộn, viền trên hồng giống footer
+    <header className="sticky top-0 z-50 w-full bg-white border-b-2 border-pink-600 shadow-sm">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 md:py-4">
+        {/* LOGO & BRAND */}
+        <Link href="/" className="flex items-center gap-3 group shrink-0">
+          <div className="relative h-10 w-10 sm:h-12 sm:w-12">
+            <Image
+              src="/Logo_TPCaoLanh.svg"
+              alt="Logo Phường Cao Lãnh"
+              width={48}
+              height={48}
+              className="h-full w-full object-contain"
+            />
+          </div>
+          <div className="flex flex-col justify-center">
+            <span className="uppercase font-bold text-pink-600 tracking-wide text-sm">
+              Phường Cao Lãnh
+            </span>
+            <span className="hidden sm:block text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
+              Cổng thông tin điện tử
+            </span>
+          </div>
         </Link>
 
-        <NavigationMenu viewport={false} className="hidden md:block">
+        {/* NAVIGATION LINKS */}
+        <NavigationMenu
+          viewport={false}
+          className="hidden lg:block flex-1 justify-center"
+        >
           <NavigationMenuList className="gap-2">
             {components.map((component) => (
               <NavigationMenuItem key={component.id}>
                 <NavigationMenuLink
                   asChild
-                  className={`${navigationMenuTriggerStyle()} text-lg ${
+                  className={`relative px-4 py-2.5 text-[14px] rounded-md transition-all duration-200 ${
                     isRouteActive(component.href)
-                      ? "bg-pink-100 text-pink-600"
-                      : ""
+                      ? "bg-pink-50 text-pink-700 font-bold"
+                      : "text-slate-600 font-medium hover:bg-slate-50 hover:text-pink-600"
                   }`}
                 >
                   <Link href={component.href}>{component.title}</Link>
@@ -205,132 +197,84 @@ export function Navbar() {
             ))}
 
             <NavigationMenuItem>
-<<<<<<< HEAD
-              <NavigationMenuTrigger 
-                className={`text-lg hover:text-pink-600 hover:bg-pink-100 focus:bg-pink-100 focus:text-pink-600 ${pathname?.startsWith('/dich-vu') ? 'bg-pink-100 text-pink-600' : ''}`}
-                onClick={() => router.push('/dich-vu')}
-              >
-                Dịch vụ
-              </NavigationMenuTrigger>
-              <NavigationMenuContent className="z-50 md:left-auto md:right-0">
-                <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                  <li className="row-span-3">
-                    <NavigationMenuLink asChild>
-                      <Link
-                        className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md hover:bg-slate-100 transition-colors"
-                        href="/dich-vu"
-                      >
-                        <div className="mb-2 mt-4 text-lg font-medium text-[#c22143]">
-                          Dịch vụ hành chính
-=======
-              <NavigationMenuTrigger className="rounded-full px-4 text-base font-medium transition-all duration-200 hover:border-border/70 hover:bg-secondary/70 focus:bg-secondary/70">
+              <NavigationMenuTrigger className="px-4 py-2.5 text-[14px] text-slate-600 font-medium rounded-md transition-all hover:bg-slate-50 hover:text-pink-600 data-[state=open]:bg-pink-50 data-[state=open]:text-pink-700">
                 <Link href="/dich-vu">Dịch vụ</Link>
               </NavigationMenuTrigger>
-              <NavigationMenuContent className="z-50 md:left-auto md:right-0">
-                <ul className="grid w-1000 gap-2 md:w-96 md:grid-cols-1 lg:w-96">
+              <NavigationMenuContent className="z-50">
+                {/* Menu Dropdown thiết kế dạng thẻ (Card) trắng sạch sẽ */}
+                <ul className="grid w-[400px] gap-2 p-3 bg-white border border-slate-100 rounded-lg shadow-xl">
                   {services.map((service) => (
-                    <NavigationMenuLink
-                      key={service.id}
-                      className="hover:text-pink-600 hover:bg-pink-100"
-                      asChild
-                    >
-                      <Link href={`/dich-vu/${service.url}`}>
-                        <div className="flex flex-col gap-1 text-base">
-                          <div className="leading-none font-medium">
-                            {service.title}
-                          </div>
-                          <div className="line-clamp-2 text-muted-foreground">
-                            {service.description}
-                          </div>
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
+                    <NavigationMenuLink asChild key={service.id}>
+                      <Link
+                        href={`/dich-vu/${service.url}`}
+                        className="block px-4 py-3 rounded-md transition-colors hover:bg-slate-50 group"
+                      >
+                        <div className="text-[14px] font-bold text-slate-800 group-hover:text-pink-700 transition-colors">
+                          {service.title}
                         </div>
-                        <p className="text-sm leading-tight text-muted-foreground">
-                          Tra cứu thủ tục, nộp hồ sơ trực tuyến và tải biểu mẫu hành chính nhanh chóng, tiện lợi.
-                        </p>
+                        <div className="text-[13px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
+                          {service.description}
+                        </div>
                       </Link>
                     </NavigationMenuLink>
-                  </li>
-                  <li>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        href="/dich-vu/thu-tuc-hanh-chinh"
-                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
-                      >
-                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Thủ tục hành chính</div>
-                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                          Tra cứu các thủ tục hành chính theo từng lĩnh vực.
-                        </p>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                  <li>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        href="/dich-vu/nop-ho-so"
-                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
-                      >
-                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Nộp hồ sơ trực tuyến</div>
-                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                          Nộp và theo dõi tiến độ xử lý hồ sơ hành chính.
-                        </p>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                  <li>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        href="/dich-vu/tai-bieu-mau"
-                        className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-100 hover:text-accent-foreground focus:bg-slate-100 focus:text-accent-foreground"
-                      >
-                        <div className="text-sm font-medium leading-none mb-1 text-blue-700">Tải biểu mẫu</div>
-                        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                          Tải về các biểu mẫu, tờ khai hành chính chuẩn.
-                        </p>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
+                  ))}
                 </ul>
               </NavigationMenuContent>
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
 
-        <div className="hidden items-center gap-2 md:flex">
+        {/* USER / AUTH */}
+        <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="rounded-full">
-                  <Avatar>
+                <Button
+                  variant="ghost"
+                  className="rounded-full hover:bg-slate-50 transition-all gap-2 px-2 py-1.5 h-auto border border-transparent hover:border-slate-200"
+                >
+                  <Avatar className="h-8 w-8 ring-2 ring-pink-100">
                     <AvatarImage
                       src={currentUser?.avatarUrl ?? undefined}
-                      alt={currentUser?.fullName ?? "Tài khoản"}
+                      alt="Avatar"
                     />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-pink-100 text-pink-700 text-xs font-bold">
                       {getInitials(currentUser?.fullName ?? "")}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="grid flex-1 text-left leading-tight">
-                    <span className="truncate font-medium">
+                  <div className="hidden md:grid flex-1 text-left leading-tight">
+                    <span className="text-[13px] font-bold text-slate-700">
                       {currentUser?.fullName ?? "Người dùng"}
                     </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {currentUser?.email ?? "Chưa cập nhật email"}
+                    <span className="text-[11px] font-medium text-slate-500 truncate max-w-[120px]">
+                      {currentUser?.email ?? ""}
                     </span>
                   </div>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-32">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-lg shadow-lg border-slate-200"
+              >
                 <DropdownMenuGroup>
-                  <DropdownMenuItem>
-                    {canAccessAdmin ? (
-                      <Link href={dashboardHref}>Quản trị</Link>
-                    ) : null}
-                  </DropdownMenuItem>
+                  <div className="px-2 py-1.5 text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">
+                    Tài khoản
+                  </div>
+                  {canAccessAdmin && (
+                    <DropdownMenuItem
+                      asChild
+                      className="cursor-pointer font-medium text-slate-700 focus:text-pink-700 focus:bg-pink-50"
+                    >
+                      <Link href={dashboardHref} className="w-full">
+                        Quản trị Hệ Thống
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuGroup>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="bg-slate-100" />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    variant="destructive"
+                    className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700 font-medium"
                     onClick={handleLogout}
                   >
                     Đăng xuất
@@ -340,77 +284,13 @@ export function Navbar() {
             </DropdownMenu>
           ) : (
             <Link href="/dang-nhap">
-              <Button size="lg" className="text-lg" variant="outline">
+              <Button className="bg-pink-600 hover:bg-pink-700 text-white font-semibold rounded-md px-5 shadow-sm transition-all text-sm h-10">
                 Đăng nhập
               </Button>
             </Link>
           )}
         </div>
       </div>
-<<<<<<< HEAD
-
-      {isMobileMenuOpen ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border bg-white p-4 shadow-lg md:hidden">
-          <nav className="flex flex-col gap-1">
-            {components.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                onClick={closeMobileMenu}
-                className={`rounded-md px-3 py-2 text-base font-medium hover:bg-muted ${
-                  isRouteActive(item.href) ? "bg-pink-100 text-pink-600" : ""
-                }`}
-              >
-                {item.title}
-              </Link>
-            ))}
-            <div className="px-3 py-2 text-base font-medium">
-              <Link href="/dich-vu" onClick={closeMobileMenu} className={`block mb-2 font-semibold ${pathname?.startsWith('/dich-vu') ? 'text-pink-600' : ''}`}>
-                Dịch vụ hành chính
-              </Link>
-              <div className="flex flex-col gap-2 pl-4 border-l-2 border-slate-100">
-                <Link href="/dich-vu/thu-tuc-hanh-chinh" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Thủ tục hành chính</Link>
-                <Link href="/dich-vu/nop-ho-so" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Nộp hồ sơ trực tuyến</Link>
-                <Link href="/dich-vu/tai-bieu-mau" onClick={closeMobileMenu} className="text-sm text-slate-600 hover:text-blue-600">Tải biểu mẫu</Link>
-              </div>
-            </div>
-
-            {canAccessAdmin ? (
-              <Link
-                href={dashboardHref}
-                onClick={closeMobileMenu}
-                className="mt-3"
-              >
-                <Button className="w-full" variant="secondary">
-                  Quản trị
-                </Button>
-              </Link>
-            ) : null}
-
-            {isAuthenticated ? (
-              <Button
-                className="mt-3 w-full"
-                variant="outline"
-                onClick={handleLogout}
-              >
-                Đăng xuất
-              </Button>
-            ) : (
-              <Link
-                href="/dang-nhap"
-                onClick={closeMobileMenu}
-                className="mt-3"
-              >
-                <Button className="w-full" variant="outline">
-                  Đăng nhập
-                </Button>
-              </Link>
-            )}
-          </nav>
-        </div>
-      ) : null}
-=======
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
-    </div>
+    </header>
   );
 }

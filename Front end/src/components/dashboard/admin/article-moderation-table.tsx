@@ -255,7 +255,11 @@ export function ArticleModerationTable() {
         toast.success("Đã xoá bài viết thành công.");
       } catch (error) {
         console.error("Cannot delete article", error);
-        toast.error("Không thể xoá bài viết.");
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "Không thể xoá bài viết.";
+        toast.error(message);
       } finally {
         setProcessingArticleId(null);
       }

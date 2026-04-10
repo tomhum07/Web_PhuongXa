@@ -242,15 +242,6 @@ export function ArticleForm({ categories, onSuccess }: ArticleFormProps) {
           <Label htmlFor="content" className="mb-1">
             Nội dung *
           </Label>
-          {/* <Textarea
-            id="content"
-            name="content"
-            value={formData.content}
-            onChange={handleInputChange}
-            placeholder="Nhập nội dung bài viết"
-            rows={6}
-            required
-          /> */}
 
           <TinyMCEEditor
             apiKey="lo22j7heipnhkk80mk7x7bqk9ibuus8tz5gqz145z52ymorj"
@@ -329,7 +320,6 @@ export function ArticleForm({ categories, onSuccess }: ArticleFormProps) {
               <SelectContent>
                 <SelectItem value="Draft">Nháp</SelectItem>
                 <SelectItem value="PendingApproval">Chờ duyệt</SelectItem>
-                <SelectItem value="Published">Xuất bản</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -26,12 +26,10 @@ import {
   FolderTree,
   DatabaseIcon,
   FileChartColumnIcon,
-  FileIcon,
+  FileInput,
   ArrowLeft,
   Briefcase,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 
@@ -53,11 +51,6 @@ const data = {
       icon: <Newspaper />,
     },
     {
-      title: "Quản lý thủ tục",
-      url: "/quan-ly-thu-tuc",
-      icon: <FileChartColumnIcon />,
-    },
-    {
       title: "Quản lý tài khoản",
       url: "/quan-ly-tai-khoan",
       icon: <Users />,
@@ -68,17 +61,20 @@ const data = {
       icon: <FolderTree />,
     },
     {
-<<<<<<< HEAD
-      title: "Quản lý thư viện",
-      url: "/quan-ly-thu-vien",
-      icon: <FileIcon />,
-    }
-=======
-      title: "Quản lý dịch vụ",
-      url: "/quan-ly-dich-vu",
+      title: "Quản lý phản ánh",
+      url: "/quan-ly-phan-hoi",
       icon: <Briefcase />,
     },
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
+    {
+      title: "Quản lý hồ sơ",
+      url: "/quan-ly-ho-so",
+      icon: <FileInput />,
+    },
+    {
+      title: "Quản lý lĩnh vực, thủ tục",
+      url: "/quan-ly-linhvuc-thutuc",
+      icon: <Briefcase />,
+    },
   ],
   navSecondary: [
     // {

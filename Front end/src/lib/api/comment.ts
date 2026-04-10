@@ -1,4 +1,5 @@
 import { API_PREFIX } from "@/lib/api/config";
+import { getAuthSnapshot } from "@/lib/auth";
 
 export type ArticleComment = {
   commentId: number;
@@ -74,7 +75,12 @@ function normalizeComment(value: unknown): ArticleComment | null {
     return null;
   }
 
-  const statusRaw = pickNumber(record, ["status", "Status"]);
+  const hasStatusField =
+    Object.prototype.hasOwnProperty.call(record, "status") ||
+    Object.prototype.hasOwnProperty.call(record, "Status");
+  const statusRaw = hasStatusField
+    ? pickNumber(record, ["status", "Status"])
+    : 1;
 
   return {
     commentId: pickNumber(record, ["commentId", "CommentId"]),
@@ -93,12 +99,15 @@ export async function getCommentsByArticle(
   articleId: number,
   signal?: AbortSignal,
 ): Promise<ArticleComment[]> {
-  const response = await fetch(`${API_PREFIX}/Comment/article/${articleId}`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal,
-    cache: "no-store",
-  });
+  const response = await fetch(
+    `${API_PREFIX}/PublicComment/article/${articleId}`,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal,
+      cache: "no-store",
+    },
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch comments: ${response.status}`);
@@ -117,11 +126,14 @@ export async function getCommentsByArticle(
 export async function createComment(
   payload: CreateCommentPayload,
 ): Promise<ArticleComment> {
-  const response = await fetch(`${API_PREFIX}/Comment`, {
+  const { token } = getAuthSnapshot();
+
+  const response = await fetch(`${API_PREFIX}/PublicComment`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
   });
@@ -144,4 +156,51 @@ export async function createComment(
   }
 
   return comment;
+}
+
+export async function updateComment(
+  commentId: number,
+  content: string,
+): Promise<void> {
+  const { token } = getAuthSnapshot();
+
+  const response = await fetch(`${API_PREFIX}/PublicComment/${commentId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    const data: unknown = await response.json().catch(() => null);
+    const responseRecord = toRecord(data);
+    const message =
+      pickString(responseRecord ?? {}, ["message", "Message"]) ||
+      "Không thể cập nhật bình luận.";
+    throw new Error(message);
+  }
+}
+
+export async function deleteComment(commentId: number): Promise<void> {
+  const { token } = getAuthSnapshot();
+
+  const response = await fetch(`${API_PREFIX}/PublicComment/${commentId}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const data: unknown = await response.json().catch(() => null);
+    const responseRecord = toRecord(data);
+    const message =
+      pickString(responseRecord ?? {}, ["message", "Message"]) ||
+      "Không thể xóa bình luận.";
+    throw new Error(message);
+  }
 }

@@ -61,7 +61,7 @@ export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/Auth/verify-otp`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/Auth/verify-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,7 +103,7 @@ export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
     setIsResending(true);
     try {
       const response = await fetch(
-        `${getApiBaseUrl()}/Auth/forgot-password`,
+        `${getApiBaseUrl()}/api/Auth/forgot-password`,
         {
           method: "POST",
           headers: {
@@ -211,12 +211,6 @@ export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
             </div>
 
             <FieldError>{error}</FieldError>
-
-            <FieldDescription>
-              <a href="#">
-                Tôi không còn truy cập được vào địa chỉ email này nữa.
-              </a>
-            </FieldDescription>
           </Field>
         </CardContent>
         <CardFooter>
@@ -228,15 +222,6 @@ export function OTPForm({ email = "m@example.com" }: OTPFormProps) {
             >
               {isSubmitting ? "Đang xác minh..." : "Xác minh"}
             </Button>
-            <div className="text-sm text-muted-foreground">
-              Bạn gặp sự cố khi đăng nhập?{" "}
-              <a
-                href="#"
-                className="underline underline-offset-4 transition-colors hover:text-primary"
-              >
-                Liên hệ bộ phận hỗ trợ
-              </a>
-            </div>
           </Field>
         </CardFooter>
       </form>

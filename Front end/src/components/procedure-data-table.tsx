@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ProcedureByField } from "@/lib/api/procedure";
+import { getDocumentViewerUrl } from "@/lib/utils/document-viewer";
 
 type ProcedureDataTableProps = {
   data: ProcedureByField[];
@@ -39,33 +40,40 @@ const columns: ColumnDef<ProcedureByField>[] = [
     accessorKey: "procedureName",
     header: "Tên thủ tục",
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.procedureName}</span>
+      <span className="font-semibold text-slate-900">
+        {row.original.procedureName}
+      </span>
     ),
   },
   {
     accessorKey: "description",
     header: "Mô tả",
     cell: ({ row }) => (
-      <span className="line-clamp-2 text-muted-foreground">
+      <span className="line-clamp-2 text-slate-500">
         {row.original.description || "-"}
       </span>
     ),
   },
   {
     id: "viewProcedure",
-    header: () => <div className="text-center">Xem thủ tục</div>,
+    header: () => <div className="text-center">Xem</div>,
     cell: ({ row }) => {
       const url = row.original.procedureFileUrl;
 
       if (!url) {
-        return <div className="text-center text-muted-foreground">-</div>;
+        return <div className="text-center text-slate-400">-</div>;
       }
 
       return (
-        <div className="text-center">
-          <Button asChild size="sm" variant="outline">
-            <a href={url} target="_blank" rel="noreferrer">
-              <Eye className="mr-2 h-4 w-4" />
+        <div className="flex justify-center">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="hover:bg-blue-600 hover:text-white transition-all"
+          >
+            <a href={getDocumentViewerUrl(url)} target="_blank">
+              <Eye className="mr-1 h-4 w-4" />
               Xem
             </a>
           </Button>
@@ -75,19 +83,23 @@ const columns: ColumnDef<ProcedureByField>[] = [
   },
   {
     id: "downloadTemplate",
-    header: () => <div className="text-center">Tải biểu mẫu</div>,
+    header: () => <div className="text-center">Tải</div>,
     cell: ({ row }) => {
       const url = row.original.templateFileUrl;
 
       if (!url) {
-        return <div className="text-center text-muted-foreground">-</div>;
+        return <div className="text-center text-slate-400">-</div>;
       }
 
       return (
-        <div className="text-center">
-          <Button asChild size="sm">
-            <a href={url} target="_blank" rel="noreferrer" download>
-              <Download className="mr-2 h-4 w-4" />
+        <div className="flex justify-center">
+          <Button
+            asChild
+            size="sm"
+            className="bg-blue-600 text-white hover:bg-blue-700 transition-all"
+          >
+            <a href={url} target="_blank" download>
+              <Download className="mr-1 h-4 w-4" />
               Tải
             </a>
           </Button>
@@ -98,8 +110,6 @@ const columns: ColumnDef<ProcedureByField>[] = [
 ];
 
 export function ProcedureDataTable({ data }: ProcedureDataTableProps) {
-  "use no memo";
-
   const table = useReactTable({
     data,
     columns,
@@ -107,13 +117,17 @@ export function ProcedureDataTable({ data }: ProcedureDataTableProps) {
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <Table>
-        <TableHeader className="bg-muted">
+        {/* HEADER */}
+        <TableHeader className="sticky top-0 z-10 bg-slate-50">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
+                <TableHead
+                  key={header.id}
+                  className="text-xs font-semibold uppercase tracking-wide text-slate-600"
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -125,11 +139,23 @@ export function ProcedureDataTable({ data }: ProcedureDataTableProps) {
             </TableRow>
           ))}
         </TableHeader>
+
+        {/* BODY */}
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+          {table.getRowModel().rows.map((row, index) => (
+            <TableRow
+              key={row.id}
+              className={`
+                transition
+                ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}
+                hover:bg-blue-50
+              `}
+            >
               {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
+                <TableCell
+                  key={cell.id}
+                  className="text-sm text-slate-700 py-3"
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}

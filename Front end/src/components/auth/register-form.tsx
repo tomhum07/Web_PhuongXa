@@ -69,7 +69,7 @@ function RegisterForm({ className, ...props }: React.ComponentProps<"div">) {
     setSuccessMessage("");
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/Auth/register`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/Auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

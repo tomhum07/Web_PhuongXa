@@ -1,3 +1,6 @@
+"use client";
+
+import { FormEvent, useState } from "react";
 import MapCard from "@/components/ui/Card/CardMap/cardmap";
 import {
   Card,
@@ -11,8 +14,57 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Mail, MailIcon, MapPin, MessageSquareMore, Phone } from "lucide-react";
+import { createFeedback } from "@/lib/api/feedback";
+import {
+  Loader2,
+  Mail,
+  MailIcon,
+  MapPin,
+  MessageSquareMore,
+  Phone,
+} from "lucide-react";
+import { toast } from "sonner";
+
 export default function LienHe() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formElement = event.currentTarget;
+    const formData = new FormData(formElement);
+
+    const fullName = String(formData.get("hoTen") || "").trim();
+    const email = String(formData.get("email") || "").trim();
+    const phoneNumber = String(formData.get("numberPhone") || "").trim();
+    const content = String(formData.get("message") || "").trim();
+
+    if (!fullName || !email || !content) {
+      toast.error("Vui lòng nhập đầy đủ họ tên, email và nội dung phản ánh.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await createFeedback({
+        fullName,
+        email,
+        phoneNumber,
+        content,
+      });
+      toast.success(result.message);
+      formElement.reset();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Không thể gửi phản ánh/kiến nghị. Vui lòng thử lại sau.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <header className="relative overflow-hidden border-b bg-rose-50/70">
@@ -108,7 +160,7 @@ export default function LienHe() {
           </CardHeader>
 
           <CardContent className="flex-1">
-            <form>
+            <form id="contact-feedback-form" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-6">
                 <div className="grid">
                   <Label htmlFor="hoTen" className="text-base">
@@ -116,9 +168,11 @@ export default function LienHe() {
                   </Label>
                   <Input
                     id="hoTen"
+                    name="hoTen"
                     type="text"
                     placeholder="Nguyễn Văn A"
                     className="py-5 outline-pink-100 focus-visible:ring-pink-200 focus-visible:ring-3"
+                    required
                   />
                 </div>
                 <div className="grid ">
@@ -127,9 +181,11 @@ export default function LienHe() {
                   </Label>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
                     placeholder="mail@example.com"
                     className="py-5 outline-pink-100 focus-visible:ring-pink-200 focus-visible:ring-3"
+                    required
                   />
                 </div>
                 <div className="grid">
@@ -140,6 +196,7 @@ export default function LienHe() {
                   </div>
                   <Input
                     id="numberPhone"
+                    name="numberPhone"
                     type="tel"
                     placeholder="Nhập số điện thoại"
                     className="py-5 outline-pink-100 focus-visible:ring-pink-200 focus-visible:ring-3"
@@ -151,8 +208,10 @@ export default function LienHe() {
                   </Label>
                   <Textarea
                     id="message"
+                    name="message"
                     placeholder="Nhập nội dung phản ánh/kiến nghị"
                     className="h-40 outline-pink-100 focus-visible:ring-pink-200 focus-visible:ring-3"
+                    required
                   />
                 </div>
               </div>
@@ -161,10 +220,20 @@ export default function LienHe() {
 
           <CardFooter>
             <Button
+              type="submit"
+              form="contact-feedback-form"
               size="lg"
+              disabled={isSubmitting}
               className="w-full text-base font-semibold bg-pink-600"
             >
-              GỬI
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  ĐANG GỬI...
+                </>
+              ) : (
+                "GỬI"
+              )}
             </Button>
           </CardFooter>
         </Card>

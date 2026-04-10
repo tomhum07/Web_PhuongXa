@@ -85,11 +85,7 @@ function clearCookieValue(name: string): void {
 }
 
 export function getApiBaseUrl(): string {
-<<<<<<< HEAD
-  return process.env.NEXT_PUBLIC_API_URL || "https://phuongxa-api-backend-fuc4gzgyauanbhc7.southeastasia-01.azurewebsites.net/api";
-=======
   return API_BASE_URL;
->>>>>>> 6dad0d803cdb2498e58b360c22d2c7971b199c19
 }
 
 export function normalizeRole(role: string): string {
@@ -148,6 +144,12 @@ export function setAuthSession(input: AuthSessionInput): void {
 
   setCookieValue(TOKEN_COOKIE, input.token);
   setCookieValue(ROLE_COOKIE, role);
+
+  window.dispatchEvent(
+    new CustomEvent("authStateChanged", {
+      detail: { userId: input.userId, fullName: input.fullName },
+    }),
+  );
 }
 
 export function getAuthSnapshot(): AuthSnapshot {
@@ -294,4 +296,6 @@ export function clearAuthSession(): void {
 
   clearCookieValue(TOKEN_COOKIE);
   clearCookieValue(ROLE_COOKIE);
+
+  window.dispatchEvent(new CustomEvent("authStateChanged", { detail: {} }));
 }
